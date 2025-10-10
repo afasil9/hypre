@@ -2674,6 +2674,13 @@ HYPRE_Int HYPRE_AMSSetInteriorNodes(HYPRE_Solver    solver,
                                     HYPRE_ParVector interior_nodes);
 
 /**
+ * Resets AMS's internal counter. Useful for time dependant problems.
+ **/
+
+HYPRE_Int HYPRE_AMSResetSolveCounter(HYPRE_Solver solver);
+
+
+/**
  * (Optional) Set the frequency at which a projection onto the compatible
  * subspace for problems with zero-conductivity regions is performed. The
  * default value is 5.

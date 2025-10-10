@@ -158,6 +158,15 @@ HYPRE_Int HYPRE_AMSSetInteriorNodes(HYPRE_Solver solver,
 }
 
 /*--------------------------------------------------------------------------
+ * HYPRE_AMSResetSolveCounter
+ *--------------------------------------------------------------------------*/
+
+HYPRE_Int HYPRE_AMSResetSolveCounter(HYPRE_Solver solver)
+{
+   return hypre_AMSResetSolveCounter((void *) solver);
+}
+
+/*--------------------------------------------------------------------------
  * HYPRE_AMSSetSetProjectionFrequency
  *--------------------------------------------------------------------------*/
 

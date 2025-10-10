@@ -1720,6 +1720,7 @@ HYPRE_Int hypre_AMSSetInterpolations ( void *solver, hypre_ParCSRMatrix *Pi,
 HYPRE_Int hypre_AMSSetAlphaPoissonMatrix ( void *solver, hypre_ParCSRMatrix *A_Pi );
 HYPRE_Int hypre_AMSSetBetaPoissonMatrix ( void *solver, hypre_ParCSRMatrix *A_G );
 HYPRE_Int hypre_AMSSetInteriorNodes ( void *solver, hypre_ParVector *interior_nodes );
+HYPRE_Int hypre_AMSResetSolveCounter ( void *solver );
 HYPRE_Int hypre_AMSSetProjectionFrequency ( void *solver, HYPRE_Int projection_frequency );
 HYPRE_Int hypre_AMSSetMaxIter ( void *solver, HYPRE_Int maxit );
 HYPRE_Int hypre_AMSSetTol ( void *solver, HYPRE_Real tol );
