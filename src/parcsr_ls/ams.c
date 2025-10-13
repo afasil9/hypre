@@ -1318,10 +1318,10 @@ HYPRE_Int hypre_AMSSetInteriorNodes(void *solver,
 
 HYPRE_Int hypre_AMSResetSolveCounter(void *solver)
 { 
-    printf("Reset AMS solve counter\n");
+   //  printf("Reset AMS solve counter\n");
     hypre_AMSData *ams_data = (hypre_AMSData *) solver;
     ams_data->solve_counter = 0;
-    printf("AMS solve counter reset to %d\n", ams_data->solve_counter);
+   //  printf("AMS solve counter reset to %d\n", ams_data->solve_counter);
     return hypre_error_flag;
 }
 
