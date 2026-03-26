@@ -47,6 +47,8 @@
 #include "HYPRE_sstruct_ls.h"
 #include "HYPRE.h"
 #include "ex.h"
+#include "HYPRE_parcsr_mv.h"
+#include "_hypre_parcsr_mv.h"
 
 #ifdef HYPRE_EXVIS
 #include "vis.c"
@@ -89,6 +91,12 @@ double alpha(double x, double y, double z)
 }
 
 /* Mass coefficient beta = sigma */
+
+const int size_beta = 4.0;
+double beta_loc = size_beta / 20.0;
+int freq = 100;
+double eps = 1e-12;
+
 double beta(double x, double y, double z)
 {
    switch (optionBeta)
@@ -115,7 +123,25 @@ double beta(double x, double y, double z)
          {
             return 1.0e-6;
          }
-      case 4: /* random coefficient */
+      case 4: /* Inner cube with beta value of 0 and outer cube with beta = 1 */
+         if ((fabs(x - 0.5) < beta_loc) && (fabs(y - 0.5) < beta_loc) && (fabs(z - 0.5) < beta_loc))
+         {
+            return 0.0;
+         }
+         else
+         {
+            return 1.0;
+         }
+      case 5: /* Inner cube with beta value of 1 and outer cube with beta = 0 */
+         if ((fabs(x - 0.5) < beta_loc + eps) && (fabs(y - 0.5) < beta_loc + eps) && (fabs(z - 0.5) < beta_loc + eps))
+         {
+            return 1.0;
+         }
+         else
+         {
+            return 0.0;
+         }
+      case 6: /* random coefficient */
          return ((double)rand() / RAND_MAX);
       default:
          return 1.0;
@@ -210,7 +236,6 @@ void ComputeFEMND1(double **S, double F[12],
    }
 }
 
-
 int main (int argc, char *argv[])
 {
    int myid, num_procs;
@@ -238,6 +263,7 @@ int main (int argc, char *argv[])
    HYPRE_SStructStencil  G_stencil[3];
    HYPRE_SStructMatrix   G;
    HYPRE_SStructVector   xcoord, ycoord, zcoord;
+   HYPRE_SStructVector   interior_nodes;
 
    HYPRE_Solver          solver, precond;
 
@@ -256,9 +282,9 @@ int main (int argc, char *argv[])
    n                = 10;
    vis              = 0;
    optionAlpha      = 0;
-   optionBeta       = 0;
+   optionBeta       = 5;
    maxit            = 100;
-   tol              = 1e-6;
+   tol              = 1e-10;
    cycle_type       = 13;
    rlx_type         = 2;
    rlx_sweeps       = 1;
@@ -814,6 +840,11 @@ int main (int argc, char *argv[])
       HYPRE_SStructVectorCreate(MPI_COMM_WORLD, node_grid, &xcoord);
       HYPRE_SStructVectorCreate(MPI_COMM_WORLD, node_grid, &ycoord);
       HYPRE_SStructVectorCreate(MPI_COMM_WORLD, node_grid, &zcoord);
+
+      HYPRE_SStructVectorCreate(MPI_COMM_WORLD, node_grid, &interior_nodes);
+      HYPRE_SStructVectorSetObjectType(interior_nodes, HYPRE_PARCSR);
+      HYPRE_SStructVectorInitialize(interior_nodes);
+
       /* Set the object type to ParCSR */
       HYPRE_SStructVectorSetObjectType(xcoord, HYPRE_PARCSR);
       HYPRE_SStructVectorSetObjectType(ycoord, HYPRE_PARCSR);
@@ -822,6 +853,8 @@ int main (int argc, char *argv[])
       HYPRE_SStructVectorInitialize(xcoord);
       HYPRE_SStructVectorInitialize(ycoord);
       HYPRE_SStructVectorInitialize(zcoord);
+
+      double value = 1.0;
 
       /* Compute and set the coordinates of the nodes */
       for (i = 0; i <= n; i++)
@@ -834,10 +867,30 @@ int main (int argc, char *argv[])
                xyzval[1] = index[1] * h;
                xyzval[2] = index[2] * h;
 
+               if (optionBeta == 4){
+                  if ((fabs(xyzval[0] - 0.5) < beta_loc - eps && // -eps to get a slightly smaller box this will exclude the interface nodes
+                     fabs(xyzval[1] - 0.5) < beta_loc - eps &&
+                     fabs(xyzval[2] - 0.5) < beta_loc - eps))
+                  {
+                     HYPRE_SStructVectorSetValues(interior_nodes, part, index, var, &value);
+                  }
+               }
+
+              if (optionBeta == 5){
+                  if (!(fabs(xyzval[0] - 0.5) < beta_loc + eps && // +eps to get a slightly larger box this will include the interface nodes
+                     fabs(xyzval[1] - 0.5) < beta_loc + eps &&
+                     fabs(xyzval[2] - 0.5) < beta_loc + eps))
+                  {
+                     HYPRE_SStructVectorSetValues(interior_nodes, part, index, var, &value);
+                  }
+               }
+
                HYPRE_SStructVectorSetValues(xcoord, part, index, var, &xyzval[0]);
                HYPRE_SStructVectorSetValues(ycoord, part, index, var, &xyzval[1]);
                HYPRE_SStructVectorSetValues(zcoord, part, index, var, &xyzval[2]);
             }
+
+      HYPRE_SStructVectorAssemble(interior_nodes);
 
       /* Finalize the vector assembly */
       HYPRE_SStructVectorAssemble(xcoord);
@@ -911,6 +964,7 @@ int main (int argc, char *argv[])
       HYPRE_ParVector       par_xcoord;
       HYPRE_ParVector       par_ycoord;
       HYPRE_ParVector       par_zcoord;
+      HYPRE_ParVector       par_interior_nodes;
 
       /* Extract the ParCSR objects needed in the solver */
       HYPRE_SStructMatrixGetObject(A, (void **) &par_A);
@@ -920,6 +974,7 @@ int main (int argc, char *argv[])
       HYPRE_SStructVectorGetObject(xcoord, (void **) &par_xcoord);
       HYPRE_SStructVectorGetObject(ycoord, (void **) &par_ycoord);
       HYPRE_SStructVectorGetObject(zcoord, (void **) &par_zcoord);
+      HYPRE_SStructVectorGetObject(interior_nodes, (void **) &par_interior_nodes);
 
       if (myid == 0)
       {
@@ -952,6 +1007,12 @@ int main (int argc, char *argv[])
 
       /* Set discrete gradient */
       HYPRE_AMSSetDiscreteGradient(precond, par_G);
+
+      if (optionBeta == 4 || optionBeta == 5)
+      {
+         HYPRE_AMSSetInteriorNodes(precond, par_interior_nodes);
+         HYPRE_AMSSetProjectionFrequency(precond, freq);
+      }
 
       /* Set vertex coordinates */
       HYPRE_AMSSetCoordinateVectors(precond,
