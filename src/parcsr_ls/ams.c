@@ -272,7 +272,7 @@ HYPRE_Int hypre_BoomerAMGBlockSolve(void *B,
    hypre_ParVector *b_[3] = {NULL, NULL, NULL};
    hypre_ParVector *x_[3] = {NULL, NULL, NULL};
 
-   dim = hypre_ParVectorGlobalSize(x) / hypre_ParCSRMatrixGlobalNumRows(A);
+   dim = (HYPRE_Int) (hypre_ParVectorGlobalSize(x) / hypre_ParCSRMatrixGlobalNumRows(A));
 
    if (dim == 1)
    {
@@ -3976,7 +3976,7 @@ HYPRE_Int hypre_AMSSolve(void *solver,
          r_norm = hypre_sqrt(hypre_ParVectorInnerProd(ams_data -> r0, ams_data -> r0));
          r0_norm = r_norm;
          b_norm = hypre_sqrt(hypre_ParVectorInnerProd(b, b));
-         if (b_norm)
+         if (b_norm != 0.0)
          {
             relative_resid = r_norm / b_norm;
          }
@@ -4019,7 +4019,7 @@ HYPRE_Int hypre_AMSSolve(void *solver,
          hypre_ParVectorCopy(b, ams_data -> r0);
          hypre_ParCSRMatrixMatvec(-1.0, ams_data -> A, x, 1.0, ams_data -> r0);
          r_norm = hypre_sqrt(hypre_ParVectorInnerProd(ams_data -> r0, ams_data -> r0));
-         if (b_norm)
+         if (b_norm != 0.0)
          {
             relative_resid = r_norm / b_norm;
          }
@@ -4273,9 +4273,9 @@ HYPRE_Int hypre_AMSConstructDiscreteGradient(hypre_ParCSRMatrix *A,
    {
       HYPRE_Int i, *I = hypre_CTAlloc(HYPRE_Int,  nedges + 1, HYPRE_MEMORY_HOST);
       HYPRE_Real *data = hypre_CTAlloc(HYPRE_Real,  2 * nedges, HYPRE_MEMORY_HOST);
-      hypre_CSRMatrix *local = hypre_CSRMatrixCreate (nedges,
-                                                      hypre_ParVectorGlobalSize(x_coord),
-                                                      2 * nedges);
+      hypre_CSRMatrix *local = hypre_CSRMatrixCreate(nedges,
+                                                     (HYPRE_Int) hypre_ParVectorGlobalSize(x_coord),
+                                                     2 * nedges);
 
       for (i = 0; i <= nedges; i++)
       {
@@ -4287,7 +4287,7 @@ HYPRE_Int hypre_AMSConstructDiscreteGradient(hypre_ParCSRMatrix *A,
          /* Assume that the edges are already oriented */
          for (i = 0; i < 2 * nedges; i += 2)
          {
-            data[i]   = -1.0;
+            data[i]     = -1.0;
             data[i + 1] =  1.0;
          }
       }
@@ -4446,11 +4446,11 @@ hypre_AMSFEISetup(void *solver,
    /* Construct the local part of G based on edge_vertex */
    {
       /* HYPRE_Int num_edges = hypre_ParCSRMatrixNumRows(A); */
-      HYPRE_Int *I = hypre_CTAlloc(HYPRE_Int,  num_edges + 1, HYPRE_MEMORY_HOST);
-      HYPRE_Real *data = hypre_CTAlloc(HYPRE_Real,  2 * num_edges, HYPRE_MEMORY_HOST);
-      hypre_CSRMatrix *local = hypre_CSRMatrixCreate (num_edges,
-                                                      num_global_vert,
-                                                      2 * num_edges);
+      HYPRE_Int *I = hypre_CTAlloc(HYPRE_Int, num_edges + 1, HYPRE_MEMORY_HOST);
+      HYPRE_Real *data = hypre_CTAlloc(HYPRE_Real, 2 * num_edges, HYPRE_MEMORY_HOST);
+      hypre_CSRMatrix *local = hypre_CSRMatrixCreate(num_edges,
+                                                     (HYPRE_Int) num_global_vert,
+                                                     2 * num_edges);
 
       for (i = 0; i <= num_edges; i++)
       {
@@ -4460,7 +4460,7 @@ hypre_AMSFEISetup(void *solver,
       /* Assume that the edge orientation is based on the vertex indexes */
       for (i = 0; i < 2 * num_edges; i += 2)
       {
-         data[i]   =  1.0;
+         data[i]     =  1.0;
          data[i + 1] = -1.0;
       }
 

@@ -1374,6 +1374,7 @@
 #undef hypre_ILUGetInteriorExteriorPerm
 #undef hypre_ILUGetIterativeSetupHistory
 #undef hypre_ILUGetLocalPerm
+#undef hypre_ILUGetName
 #undef hypre_ILUGetNumIterations
 #undef hypre_ILUGetPermddPQ
 #undef hypre_ILUGetPermddPQPre
@@ -1473,6 +1474,7 @@
 #undef hypre_MGRBuildAff
 #undef hypre_MGRBuildBlockJacobiP
 #undef hypre_MGRBuildBlockJacobiWp
+#undef hypre_MGRBuildBlockRowLumpedInterp
 #undef hypre_MGRBuildCoarseOperator
 #undef hypre_MGRBuildInterp
 #undef hypre_MGRBuildInterpApproximateInverse
@@ -1487,6 +1489,7 @@
 #undef hypre_MGRBuildRFromWr
 #undef hypre_MGRBuildRFromWrHost
 #undef hypre_MGRBuildRestrict
+#undef hypre_MGRBuildRowLumpedInterp
 #undef hypre_MGRCoarseParms
 #undef hypre_MGRCoarsen
 #undef hypre_MGRColLumpedRestrict
@@ -1498,6 +1501,10 @@
 #undef hypre_MGRDestroy
 #undef hypre_MGRDestroyFrelaxVcycleData
 #undef hypre_MGRDestroyGSElimData
+#undef hypre_MGRDirectSolverCreate
+#undef hypre_MGRDirectSolverDestroy
+#undef hypre_MGRDirectSolverSetup
+#undef hypre_MGRDirectSolverSolve
 #undef hypre_MGRFrelaxVcycle
 #undef hypre_MGRGetCoarseGridConvergenceFactor
 #undef hypre_MGRGetCoarseGridName

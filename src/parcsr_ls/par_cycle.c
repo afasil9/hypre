@@ -177,7 +177,7 @@ hypre_BoomerAMGCycle( void              *amg_vdata,
    {
       for (j = 1; j < num_levels; j++)
       {
-         num_coeffs[j] = hypre_ParCSRBlockMatrixNumNonzeros(A_block_array[j]);
+         num_coeffs[j] = (HYPRE_Real) hypre_ParCSRBlockMatrixNumNonzeros(A_block_array[j]);
       }
    }
    else
@@ -371,7 +371,7 @@ hypre_BoomerAMGCycle( void              *amg_vdata,
       {
          HYPRE_ANNOTATE_REGION_BEGIN("%s", "Coarse solve");
          hypre_GpuProfilingPushRange("Coarse solve");
-         hypre_SLUDistSolve(hypre_ParAMGDataDSLUSolver(amg_data), Aux_F, Aux_U);
+         hypre_SLUDistSolve(hypre_ParAMGDataDSLUSolver(amg_data), NULL, Aux_F, Aux_U);
          HYPRE_ANNOTATE_REGION_END("%s", "Coarse solve");
          hypre_GpuProfilingPopRange();
       }

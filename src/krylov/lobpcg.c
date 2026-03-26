@@ -43,10 +43,10 @@ lobpcg_chol( utilities_FortranMatrix* a,
    HYPRE_Int lda, n;
    HYPRE_Real* aval;
    char uplo;
-   HYPRE_Int ierr;
+   HYPRE_Int ierr = 0;
 
-   lda = utilities_FortranMatrixGlobalHeight( a );
-   n = utilities_FortranMatrixHeight( a );
+   lda  = (HYPRE_Int) utilities_FortranMatrixGlobalHeight( a );
+   n    = (HYPRE_Int) utilities_FortranMatrixHeight( a );
    aval = utilities_FortranMatrixValues( a );
    uplo = 'U';
 
@@ -66,7 +66,7 @@ lobpcg_solveGEVP(
 )
 {
 
-   HYPRE_Int n, lda, ldb, itype, lwork, info;
+   HYPRE_Int n, lda, ldb, itype, lwork, info = 0;
    char jobz, uplo;
    HYPRE_Real* work;
    HYPRE_Real* a;
@@ -81,9 +81,9 @@ lobpcg_solveGEVP(
    b = utilities_FortranMatrixValues( mtxB );
    lmd = utilities_FortranMatrixValues( eigVal );
 
-   n = utilities_FortranMatrixHeight( mtxA );
-   lda = utilities_FortranMatrixGlobalHeight( mtxA );
-   ldb = utilities_FortranMatrixGlobalHeight( mtxB );
+   n   = (HYPRE_Int) utilities_FortranMatrixHeight( mtxA );
+   lda = (HYPRE_Int) utilities_FortranMatrixGlobalHeight( mtxA );
+   ldb = (HYPRE_Int) utilities_FortranMatrixGlobalHeight( mtxB );
    lwork = 10 * n;
 
    work = hypre_CTAlloc(HYPRE_Real,  lwork, HYPRE_MEMORY_HOST);
@@ -106,8 +106,8 @@ lobpcg_MultiVectorByMatrix(
 {
    mv_MultiVectorByMatrix( x,
                            utilities_FortranMatrixGlobalHeight( r ),
-                           utilities_FortranMatrixHeight( r ),
-                           utilities_FortranMatrixWidth( r ),
+                           (HYPRE_Int) utilities_FortranMatrixHeight( r ),
+                           (HYPRE_Int) utilities_FortranMatrixWidth( r ),
                            utilities_FortranMatrixValues( r ),
                            y );
 }
@@ -124,7 +124,7 @@ lobpcg_MultiVectorImplicitQR(
 
    /* B-orthonormalizes x using y = B x */
 
-   HYPRE_Int ierr;
+   HYPRE_Int ierr = 0;
 
    lobpcg_MultiVectorByMultiVector( x, y, r );
 
@@ -170,7 +170,7 @@ lobpcg_checkResiduals(
    HYPRE_Real atol;
    HYPRE_Real rtol;
 
-   n = utilities_FortranMatrixHeight( resNorms );
+   n = (HYPRE_Int) utilities_FortranMatrixHeight( resNorms );
 
    atol = tol.absolute;
    rtol = tol.relative;
@@ -1178,8 +1178,8 @@ lobpcg_MultiVectorByMultiVector(
 {
    mv_MultiVectorByMultiVector( x, y,
                                 utilities_FortranMatrixGlobalHeight( xy ),
-                                utilities_FortranMatrixHeight( xy ),
-                                utilities_FortranMatrixWidth( xy ),
+                                (HYPRE_Int) utilities_FortranMatrixHeight( xy ),
+                                (HYPRE_Int) utilities_FortranMatrixWidth( xy ),
                                 utilities_FortranMatrixValues( xy ) );
 }
 

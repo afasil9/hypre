@@ -313,6 +313,14 @@ hypre_GetDeviceCount( hypre_int *device_count )
 /*--------------------------------------------------------------------------*/
 
 HYPRE_Int
+hypre_GetDeviceGSMethod( void )
+{
+   return HYPRE_CURRENTPRECISION_FUNC(hypre_GetDeviceGSMethod)( );
+}
+
+/*--------------------------------------------------------------------------*/
+
+HYPRE_Int
 hypre_GetDeviceLastError( void )
 {
    return HYPRE_CURRENTPRECISION_FUNC(hypre_GetDeviceLastError)( );
@@ -1249,14 +1257,6 @@ hypre_SeedRand( HYPRE_Int seed )
 /*--------------------------------------------------------------------------*/
 
 HYPRE_Int
-hypre_SetCubMemPoolSize( hypre_uint bin_growth, hypre_uint min_bin, hypre_uint max_bin, size_t max_cached_bytes )
-{
-   return HYPRE_CURRENTPRECISION_FUNC(hypre_SetCubMemPoolSize)( bin_growth, min_bin, max_bin, max_cached_bytes );
-}
-
-/*--------------------------------------------------------------------------*/
-
-HYPRE_Int
 hypre_SetDevice( hypre_int device_id, hypre_Handle *hypre_handle_ )
 {
    return HYPRE_CURRENTPRECISION_FUNC(hypre_SetDevice)( device_id, hypre_handle_ );
@@ -1380,22 +1380,6 @@ HYPRE_Int
 hypre_SetUseGpuRand( HYPRE_Int use_gpurand )
 {
    return HYPRE_CURRENTPRECISION_FUNC(hypre_SetUseGpuRand)( use_gpurand );
-}
-
-/*--------------------------------------------------------------------------*/
-
-HYPRE_Int
-hypre_SetUserDeviceMalloc( GPUMallocFunc func )
-{
-   return HYPRE_CURRENTPRECISION_FUNC(hypre_SetUserDeviceMalloc)( func );
-}
-
-/*--------------------------------------------------------------------------*/
-
-HYPRE_Int
-hypre_SetUserDeviceMfree( GPUMfreeFunc func )
-{
-   return HYPRE_CURRENTPRECISION_FUNC(hypre_SetUserDeviceMfree)( func );
 }
 
 /*--------------------------------------------------------------------------*/

@@ -290,10 +290,10 @@ hypre_BoomerAMGCoarsenCGCb( hypre_ParCSRMatrix    *S,
       LoL_head = NULL;
       LoL_tail = NULL;
       num_left = 0;  /* compute num_left before each RS coarsening loop */
-      hypre_TMemcpy(measure_array, measure_array_master, HYPRE_Int, num_variables, HYPRE_MEMORY_HOST,
-                    HYPRE_MEMORY_HOST);
-      memset (lists, 0, sizeof(HYPRE_Int)*num_variables);
-      memset (where, 0, sizeof(HYPRE_Int)*num_variables);
+      hypre_TMemcpy(measure_array, measure_array_master, HYPRE_Int, num_variables,
+                    HYPRE_MEMORY_HOST, HYPRE_MEMORY_HOST);
+      hypre_Memset(lists, 0, (size_t) num_variables * sizeof(HYPRE_Int), HYPRE_MEMORY_HOST);
+      hypre_Memset(where, 0, (size_t) num_variables * sizeof(HYPRE_Int), HYPRE_MEMORY_HOST);
 
       for (j = 0; j < num_variables; j++)
       {
@@ -926,7 +926,8 @@ hypre_AmgCGCGraphAssemble(hypre_ParCSRMatrix *S,
 {
    HYPRE_UNUSED_VAR(coarsen_type);
 
-   HYPRE_Int i,/* ii,ip,*/ j, jj, m, n, p;
+   HYPRE_Int i,/* ii,ip,*/ j, m, n, p;
+   HYPRE_BigInt jj;
    HYPRE_Int mpisize, mpirank;
 
    MPI_Comm comm = hypre_ParCSRMatrixComm(S);
@@ -971,11 +972,11 @@ hypre_AmgCGCGraphAssemble(hypre_ParCSRMatrix *S,
       HYPRE_Int *int_buf_data   = hypre_CTAlloc(HYPRE_Int, 4 * num_sends, HYPRE_MEMORY_HOST);
       HYPRE_Int *int_buf_data2  = int_buf_data + 2 * num_sends;
       hypre_MPI_Request *sendrequest, *recvrequest;
-      HYPRE_Int pointrange_start, pointrange_end;
+      HYPRE_BigInt pointrange_start, pointrange_end;
 
       nlocal = vertexrange[1] - vertexrange[0];
-      pointrange_start = pointrange[0];
-      pointrange_end   = pointrange[1];
+      pointrange_start  = pointrange[0];
+      pointrange_end    = pointrange[1];
       vertexrange_start = vertexrange[0];
       vertexrange_end   = vertexrange[1];
       sendrequest = hypre_CTAlloc(hypre_MPI_Request, 2 * (num_sends + num_recvs), HYPRE_MEMORY_HOST);
@@ -991,8 +992,8 @@ hypre_AmgCGCGraphAssemble(hypre_ParCSRMatrix *S,
       }
       for (i = 0; i < num_sends; i++)
       {
-         int_buf_data[2 * i] = pointrange_start;
-         int_buf_data[2 * i + 1] = pointrange_end;
+         int_buf_data[2 * i] = (HYPRE_Int) pointrange_start;
+         int_buf_data[2 * i + 1] = (HYPRE_Int) pointrange_end;
          int_buf_data2[2 * i] = vertexrange_start;
          int_buf_data2[2 * i + 1] = vertexrange_end;
          hypre_MPI_Isend (int_buf_data + 2 * i, 2, HYPRE_MPI_INT, send_procs[i], tag_pointrange, comm,
@@ -1012,12 +1013,9 @@ hypre_AmgCGCGraphAssemble(hypre_ParCSRMatrix *S,
       S_offd_j = hypre_CSRMatrixJ(S_offd);
 
       recv_procs_strong = hypre_CTAlloc(HYPRE_Int, num_recvs, HYPRE_MEMORY_HOST);
-      memset (recv_procs_strong, 0, num_recvs * sizeof(HYPRE_Int));
       /* don't forget to shorten the pointrange and vertexrange arrays accordingly */
-      pointrange_strong = hypre_CTAlloc(HYPRE_Int, 2 * num_recvs, HYPRE_MEMORY_HOST);
-      memset (pointrange_strong, 0, 2 * num_recvs * sizeof(HYPRE_Int));
+      pointrange_strong  = hypre_CTAlloc(HYPRE_Int, 2 * num_recvs, HYPRE_MEMORY_HOST);
       vertexrange_strong = hypre_CTAlloc(HYPRE_Int, 2 * num_recvs, HYPRE_MEMORY_HOST);
-      memset (vertexrange_strong, 0, 2 * num_recvs * sizeof(HYPRE_Int));
 
       for (i = 0; i < num_variables; i++)
          for (j = S_offd_i[i]; j < S_offd_i[i + 1]; j++)
@@ -1183,7 +1181,6 @@ HYPRE_Int hypre_AmgCGCChoose (hypre_CSRMatrix *G, HYPRE_Int *vertexrange, HYPRE_
 
    processor = hypre_CTAlloc(HYPRE_Int, num_vertices, HYPRE_MEMORY_HOST);
    *coarse = hypre_CTAlloc(HYPRE_Int, mpisize, HYPRE_MEMORY_HOST);
-   memset (*coarse, 0, sizeof(HYPRE_Int)*mpisize);
 
    measure_array = hypre_CTAlloc(HYPRE_Int, num_vertices, HYPRE_MEMORY_HOST);
    lists = hypre_CTAlloc(HYPRE_Int, num_vertices, HYPRE_MEMORY_HOST);

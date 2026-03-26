@@ -60,9 +60,7 @@ using hypre_DeviceItem = void*;
 
 #if CUDA_VERSION >= 11000
 #define THRUST_IGNORE_DEPRECATED_CPP11
-#define CUB_IGNORE_DEPRECATED_CPP11
 #define THRUST_IGNORE_DEPRECATED_CPP_DIALECT
-#define CUB_IGNORE_DEPRECATED_CPP_DIALECT
 #endif
 
 #ifndef CUSPARSE_VERSION
@@ -119,25 +117,41 @@ using hypre_DeviceItem = void*;
 // Macro for device memory prefetching (CUDART 13.0+)
 #define HYPRE_MEM_PREFETCH_DEVICE(ptr, size, stream) \
    do { \
-      cudaMemLocation loc = {cudaMemLocationTypeDevice, hypre_HandleDevice(hypre_handle())}; \
-      HYPRE_CUDA_CALL(cudaMemPrefetchAsync(ptr, size, loc, 0, stream)); \
+      if (hypre_HandleDeviceUVM(hypre_handle())) \
+      { \
+         cudaMemLocation loc = {cudaMemLocationTypeDevice, hypre_HandleDevice(hypre_handle())}; \
+         HYPRE_CUDA_CALL(cudaMemPrefetchAsync(ptr, size, loc, 0, stream)); \
+      } \
    } while (0)
 
 // Macro for host memory prefetching (CUDART 13.0+)
 #define HYPRE_MEM_PREFETCH_HOST(ptr, size, stream) \
    do { \
-      cudaMemLocation loc = {cudaMemLocationTypeHost, cudaCpuDeviceId}; \
-      HYPRE_CUDA_CALL(cudaMemPrefetchAsync(ptr, size, loc, 0, stream)); \
+      if (hypre_HandleDeviceUVM(hypre_handle())) \
+      { \
+         cudaMemLocation loc = {cudaMemLocationTypeHost, cudaCpuDeviceId}; \
+         HYPRE_CUDA_CALL(cudaMemPrefetchAsync(ptr, size, loc, 0, stream)); \
+      } \
    } while (0)
 
 #else
 // Macro for device memory prefetching (< CUDART 13.0)
 #define HYPRE_MEM_PREFETCH_DEVICE(ptr, size, stream) \
-   HYPRE_CUDA_CALL(cudaMemPrefetchAsync(ptr, size, hypre_HandleDevice(hypre_handle()), stream))
+   do { \
+      if (hypre_HandleDeviceUVM(hypre_handle())) \
+      { \
+         HYPRE_CUDA_CALL(cudaMemPrefetchAsync(ptr, size, hypre_HandleDevice(hypre_handle()), stream)); \
+      } \
+   } while (0)
 
 // Macro for host memory prefetching (< CUDART 13.0)
 #define HYPRE_MEM_PREFETCH_HOST(ptr, size, stream) \
-   HYPRE_CUDA_CALL(cudaMemPrefetchAsync(ptr, size, cudaCpuDeviceId, stream))
+   do { \
+      if (hypre_HandleDeviceUVM(hypre_handle())) \
+      { \
+         HYPRE_CUDA_CALL(cudaMemPrefetchAsync(ptr, size, cudaCpuDeviceId, stream)); \
+      } \
+   } while (0)
 #endif
 
 #endif /* defined(HYPRE_USING_CUDA) */
@@ -191,6 +205,7 @@ using hypre_DeviceItem = void*;
 #include <thrust/binary_search.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/reverse_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/transform.h>
 #include <thrust/functional.h>
@@ -205,6 +220,7 @@ using hypre_DeviceItem = void*;
 #include <thrust/for_each.h>
 #include <thrust/remove.h>
 #include <thrust/version.h>
+#include <thrust/pair.h>
 
 /* VPM: this is needed to support cuda 10. not_fn is the correct replacement going forward. */
 #define THRUST_VERSION_NOTFN 200600
@@ -219,6 +235,8 @@ using hypre_DeviceItem = void*;
 #define HYPRE_THRUST_IDENTITY(type) thrust::identity<type>()
 #elif defined(HYPRE_USING_CUDA)
 #define HYPRE_THRUST_IDENTITY(type) cuda::std::identity()
+#elif defined(HYPRE_USING_HIP)
+#define HYPRE_THRUST_IDENTITY(type) ::internal::identity()
 #endif
 
 using namespace thrust::placeholders;
@@ -719,9 +737,6 @@ using hypre_DeviceItem = sycl::nd_item<3>;
  *      device info data structures
  * - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 
-struct hypre_cub_CachingDeviceAllocator;
-typedef struct hypre_cub_CachingDeviceAllocator hypre_cub_CachingDeviceAllocator;
-
 #if defined(HYPRE_USING_CUSOLVER)
 typedef cusolverDnHandle_t vendorSolverHandle_t;
 #elif defined(HYPRE_USING_ROCSOLVER)
@@ -765,15 +780,6 @@ struct hypre_DeviceData
 #endif
 #endif
 
-#if defined(HYPRE_USING_DEVICE_POOL)
-   hypre_uint                        cub_bin_growth;
-   hypre_uint                        cub_min_bin;
-   hypre_uint                        cub_max_bin;
-   size_t                            cub_max_cached_bytes;
-   hypre_cub_CachingDeviceAllocator *cub_dev_allocator;
-   hypre_cub_CachingDeviceAllocator *cub_uvm_allocator;
-#endif
-
 #if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
    hypre_device_allocator            device_allocator;
 #endif
@@ -782,7 +788,10 @@ struct hypre_DeviceData
    HYPRE_Int                         device_max_work_group_size;
 #else
    HYPRE_Int                         device;
+   HYPRE_Int                         device_uvm;
 #endif
+   HYPRE_Int                         use_gpu_aware_mpi;
+   HYPRE_Int                         gs_method; /* device G-S options */
    hypre_int                         device_max_shmem_per_block[3];
    /* by default, hypre puts GPU computations in this stream
     * Do not be confused with the default (null) stream */
@@ -810,14 +819,11 @@ struct hypre_DeviceData
    HYPRE_Int                         use_gpu_rand;
 };
 
-#define hypre_DeviceDataCubBinGrowth(data)                   ((data) -> cub_bin_growth)
-#define hypre_DeviceDataCubMinBin(data)                      ((data) -> cub_min_bin)
-#define hypre_DeviceDataCubMaxBin(data)                      ((data) -> cub_max_bin)
-#define hypre_DeviceDataCubMaxCachedBytes(data)              ((data) -> cub_max_cached_bytes)
-#define hypre_DeviceDataCubDevAllocator(data)                ((data) -> cub_dev_allocator)
-#define hypre_DeviceDataCubUvmAllocator(data)                ((data) -> cub_uvm_allocator)
 #define hypre_DeviceDataDevice(data)                         ((data) -> device)
+#define hypre_DeviceDataDeviceUVM(data)                      ((data) -> device_uvm)
 #define hypre_DeviceDataDeviceMaxWorkGroupSize(data)         ((data) -> device_max_work_group_size)
+#define hypre_DeviceDataUseGpuAwareMPI(data)                 ((data) -> use_gpu_aware_mpi)
+#define hypre_DeviceDataGSMethod(data)                       ((data) -> gs_method)
 #define hypre_DeviceDataDeviceMaxShmemPerBlock(data)         ((data) -> device_max_shmem_per_block)
 #define hypre_DeviceDataDeviceMaxShmemPerBlockInited(data)  (((data) -> device_max_shmem_per_block)[2])
 #define hypre_DeviceDataComputeStreamNum(data)               ((data) -> compute_stream_num)
@@ -2258,26 +2264,6 @@ HYPRE_Int hypreDevice_CsrRowPtrsToIndicesWithRowNum(HYPRE_Int nrows, HYPRE_Int n
                                                     HYPRE_Int *d_row_ptr, T *d_row_num, T *d_row_ind);
 
 #endif
-
-#if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
-
-#if defined(HYPRE_USING_CUDA)
-cudaError_t hypre_CachingMallocDevice(void **ptr, size_t nbytes);
-
-cudaError_t hypre_CachingMallocManaged(void **ptr, size_t nbytes);
-
-cudaError_t hypre_CachingFreeDevice(void *ptr);
-
-cudaError_t hypre_CachingFreeManaged(void *ptr);
-#endif
-
-hypre_cub_CachingDeviceAllocator * hypre_DeviceDataCubCachingAllocatorCreate(hypre_uint bin_growth,
-                                                                             hypre_uint min_bin, hypre_uint max_bin, size_t max_cached_bytes, bool skip_cleanup, bool debug,
-                                                                             bool use_managed_memory);
-
-void hypre_DeviceDataCubCachingAllocatorDestroy(hypre_DeviceData *data);
-
-#endif // #if defined(HYPRE_USING_CUDA) || defined(HYPRE_USING_HIP)
 
 #if defined(HYPRE_USING_CUSPARSE)
 

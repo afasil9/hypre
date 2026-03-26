@@ -214,15 +214,6 @@ HYPRE_SetExecutionPolicy( HYPRE_ExecutionPolicy exec_policy )
 /*--------------------------------------------------------------------------*/
 
 HYPRE_Int
-HYPRE_SetGPUMemoryPoolSize( HYPRE_Int bin_growth, HYPRE_Int min_bin, HYPRE_Int max_bin, size_t max_cached_bytes )
-{
-   HYPRE_Precision precision = hypre_GlobalPrecision();
-   return HYPRE_SetGPUMemoryPoolSize_pre( precision, bin_growth, min_bin, max_bin, max_cached_bytes );
-}
-
-/*--------------------------------------------------------------------------*/
-
-HYPRE_Int
 HYPRE_SetGpuAwareMPI( HYPRE_Int use_gpu_aware_mpi )
 {
    HYPRE_Precision precision = hypre_GlobalPrecision();
@@ -299,6 +290,33 @@ HYPRE_SetUseGpuRand( HYPRE_Int use_curand )
 {
    HYPRE_Precision precision = hypre_GlobalPrecision();
    return HYPRE_SetUseGpuRand_pre( precision, use_curand );
+}
+
+/*--------------------------------------------------------------------------*/
+
+HYPRE_Int
+HYPRE_SolverDestroy( HYPRE_Solver solver )
+{
+   HYPRE_Precision precision = hypre_GlobalPrecision();
+   return HYPRE_SolverDestroy_pre( precision, solver );
+}
+
+/*--------------------------------------------------------------------------*/
+
+HYPRE_Int
+HYPRE_SolverSetup( HYPRE_Solver solver, HYPRE_Matrix A, HYPRE_Vector b, HYPRE_Vector x )
+{
+   HYPRE_Precision precision = hypre_GlobalPrecision();
+   return HYPRE_SolverSetup_pre( precision, solver, A, b, x );
+}
+
+/*--------------------------------------------------------------------------*/
+
+HYPRE_Int
+HYPRE_SolverSolve( HYPRE_Solver solver, HYPRE_Matrix A, HYPRE_Vector b, HYPRE_Vector x )
+{
+   HYPRE_Precision precision = hypre_GlobalPrecision();
+   return HYPRE_SolverSolve_pre( precision, solver, A, b, x );
 }
 
 /*--------------------------------------------------------------------------*/

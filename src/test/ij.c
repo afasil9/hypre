@@ -322,7 +322,7 @@ main( hypre_int argc,
    HYPRE_Int  cheby_scale = 1;
    HYPRE_Real cheby_fraction = .3;
 
-#if defined(HYPRE_USING_GPU)
+#if defined(HYPRE_USING_GPU) && !defined(HYPRE_TEST_USING_HOST)
 #if defined(HYPRE_USING_CUSPARSE) && CUSPARSE_VERSION >= 11000
    /* CUSPARSE_SPMV_ALG_DEFAULT doesn't provide deterministic results */
    HYPRE_Int  spmv_use_vendor = 0;
@@ -340,6 +340,7 @@ main( hypre_int argc,
    HYPRE_Int  spgemm_rowest_mtd = 3;
    HYPRE_Int  spgemm_rowest_nsamples = -1; /* default */
    HYPRE_Real spgemm_rowest_mult = -1.0; /* default */
+   HYPRE_Int  gpu_aware_mpi = 0;
 #endif
    HYPRE_Int      nmv = 100;
 
@@ -529,101 +530,6 @@ main( hypre_int argc,
    char mem_tracker_name[HYPRE_MAX_FILE_NAME_LEN] = {0};
 #endif
 
-   HYPRE_Int gpu_aware_mpi = 0;
-
-   /* Initialize MPI */
-   hypre_MPI_Init(&argc, &argv);
-
-   hypre_MPI_Comm_size(comm, &num_procs);
-   hypre_MPI_Comm_rank(comm, &myid);
-
-   /* Should we test library initialization? */
-   for (arg_index = 1; arg_index < argc; arg_index ++)
-   {
-      if (strcmp(argv[arg_index], "-test_init") == 0)
-      {
-         test_init = 1;
-      }
-      else if (strcmp(argv[arg_index], "-lazy_device_init") == 0)
-      {
-         lazy_device_init = atoi(argv[++arg_index]);
-      }
-      else if (strcmp(argv[arg_index], "-device_id") == 0)
-      {
-         device_id = atoi(argv[++arg_index]);
-      }
-   }
-
-   /*-----------------------------------------------------------------
-    * GPU Device binding
-    * Must be done before HYPRE_Initialize() and should not be changed after
-    *-----------------------------------------------------------------*/
-   hypre_bind_device_id(device_id, myid, num_procs, comm);
-
-   /*-----------------------------------------------------------
-    * Initialize : must be the first HYPRE function to call
-    *-----------------------------------------------------------*/
-
-   if (test_init)
-   {
-      /* The library should not be initialized or finalized */
-      if (!HYPRE_Initialized() && !HYPRE_Finalized())
-      {
-         hypre_ParPrintf(comm, "hypre library has not been initialized or finalized yet\n");
-      }
-
-      HYPRE_Initialize();
-
-      /* Check if the library is in initialized state */
-      if (HYPRE_Initialized() && !HYPRE_Finalized())
-      {
-         hypre_ParPrintf(comm, "hypre library has been initialized\n");
-      }
-
-      HYPRE_Finalize();
-
-      /* Check if the library is in finalized state */
-      if (!HYPRE_Initialized() && HYPRE_Finalized())
-      {
-         hypre_ParPrintf(comm, "hypre library has been finalized\n");
-      }
-
-      HYPRE_Initialize();
-
-      /* Check if the library is in initialized state */
-      if (HYPRE_Initialized() && !HYPRE_Finalized())
-      {
-         hypre_ParPrintf(comm, "hypre library has been re-initialized\n");
-      }
-
-      HYPRE_Finalize();
-
-      /* Check if the library is in finalized state */
-      if (!HYPRE_Initialized() && HYPRE_Finalized())
-      {
-         hypre_ParPrintf(comm, "hypre library has been finalized\n");
-      }
-
-      hypre_MPI_Finalize();
-
-      return 0;
-   }
-
-   time_index = hypre_InitializeTiming("Hypre init");
-   hypre_BeginTiming(time_index);
-
-   HYPRE_Initialize();
-
-   if (!lazy_device_init)
-   {
-      HYPRE_DeviceInitialize();
-   }
-
-   hypre_EndTiming(time_index);
-   hypre_PrintTiming("Hypre init times", comm);
-   hypre_FinalizeTiming(time_index);
-   hypre_ClearTiming();
-
    /* default execution policy and memory space */
 #if defined(HYPRE_TEST_USING_HOST)
    HYPRE_MemoryLocation memory_location = HYPRE_MEMORY_HOST;
@@ -635,9 +541,33 @@ main( hypre_int argc,
    HYPRE_ExecutionPolicy exec2_policy = HYPRE_EXEC_DEVICE;
 #endif
 
+   /* Initialize MPI */
+   hypre_MPI_Init(&argc, &argv);
+
+   hypre_MPI_Comm_size(comm, &num_procs);
+   hypre_MPI_Comm_rank(comm, &myid);
+
+   /* Should we test library initialization? */
    for (arg_index = 1; arg_index < argc; arg_index ++)
    {
-      if ( strcmp(argv[arg_index], "-memory_host") == 0 )
+      if ( strcmp(argv[arg_index], "-ll") == 0 )
+      {
+         arg_index++;
+         log_level = atoi(argv[arg_index++]);
+      }
+      else if (strcmp(argv[arg_index], "-test_init") == 0)
+      {
+         test_init = 1;
+      }
+      else if (strcmp(argv[arg_index], "-lazy_device_init") == 0)
+      {
+         lazy_device_init = atoi(argv[++arg_index]);
+      }
+      else if (strcmp(argv[arg_index], "-device_id") == 0)
+      {
+         device_id = atoi(argv[++arg_index]);
+      }
+      else if ( strcmp(argv[arg_index], "-memory_host") == 0 )
       {
          memory_location = HYPRE_MEMORY_HOST;
       }
@@ -663,6 +593,92 @@ main( hypre_int argc,
       }
    }
 
+   /*-----------------------------------------------------------------
+    * GPU Device binding
+    * Must be done before HYPRE_Initialize() and should not be changed after
+    *-----------------------------------------------------------------*/
+   if (default_exec_policy == HYPRE_EXEC_DEVICE ||
+       exec2_policy == HYPRE_EXEC_DEVICE )
+   {
+      hypre_bind_device_id(device_id, myid, num_procs, comm);
+   }
+
+   /*-----------------------------------------------------------
+    * Initialize : must be the first HYPRE function to call
+    *-----------------------------------------------------------*/
+
+   if (test_init)
+   {
+      /* The library should not be initialized or finalized */
+      if (!HYPRE_Initialized() && !HYPRE_Finalized())
+      {
+         hypre_ParPrintf(comm, "hypre library has not been initialized or finalized yet\n");
+      }
+
+      HYPRE_Initialize();
+      HYPRE_SetExecutionPolicy(default_exec_policy);
+
+      /* Check if the library is in initialized state */
+      if (HYPRE_Initialized() && !HYPRE_Finalized())
+      {
+         hypre_ParPrintf(comm, "hypre library has been initialized\n");
+      }
+
+      HYPRE_Finalize();
+
+      /* Check if the library is in finalized state */
+      if (!HYPRE_Initialized() && HYPRE_Finalized())
+      {
+         hypre_ParPrintf(comm, "hypre library has been finalized\n");
+      }
+
+      HYPRE_Initialize();
+      HYPRE_SetExecutionPolicy(default_exec_policy);
+
+      /* Check if the library is in initialized state */
+      if (HYPRE_Initialized() && !HYPRE_Finalized())
+      {
+         hypre_ParPrintf(comm, "hypre library has been re-initialized\n");
+      }
+
+      HYPRE_Finalize();
+
+      /* Check if the library is in finalized state */
+      if (!HYPRE_Initialized() && HYPRE_Finalized())
+      {
+         hypre_ParPrintf(comm, "hypre library has been finalized\n");
+      }
+
+      hypre_MPI_Finalize();
+
+      return 0;
+   }
+
+   time_index = hypre_InitializeTiming("Hypre init");
+   hypre_BeginTiming(time_index);
+
+   HYPRE_Initialize();
+
+   /* We set the execution policy early so that hypre_EndTiming
+      knows whether to call hypre_DeviceSync or not. */
+   HYPRE_SetExecutionPolicy(default_exec_policy);
+
+   if (!lazy_device_init &&
+       (default_exec_policy == HYPRE_EXEC_DEVICE || exec2_policy == HYPRE_EXEC_DEVICE))
+   {
+      HYPRE_DeviceInitialize();
+      if (log_level > 0)
+      {
+         HYPRE_PrintDeviceInfo();
+         hypre_MPI_Barrier(comm);
+      }
+   }
+
+   hypre_EndTiming(time_index);
+   hypre_PrintTiming("Hypre init times", comm);
+   hypre_FinalizeTiming(time_index);
+   hypre_ClearTiming();
+
    if (hypre_GetExecPolicy1(memory_location) == HYPRE_EXEC_DEVICE)
    {
       keepTranspose = 1;
@@ -670,14 +686,7 @@ main( hypre_int argc,
       mod_rap2      = 1;
    }
 
-#if defined (HYPRE_USING_DEVICE_POOL)
-   /* device pool allocator */
-   hypre_uint mempool_bin_growth   = 8,
-              mempool_min_bin      = 3,
-              mempool_max_bin      = 9;
-   size_t mempool_max_cached_bytes = 2000LL * 1024 * 1024;
-
-#elif defined (HYPRE_USING_UMPIRE)
+#if defined (HYPRE_USING_UMPIRE)
    size_t umpire_dev_pool_size    = 4294967296; // 4 GiB
    size_t umpire_uvm_pool_size    = 4294967296; // 4 GiB
    size_t umpire_pinned_pool_size = 4294967296; // 4 GiB
@@ -720,12 +729,7 @@ main( hypre_int argc,
 
    while ( (arg_index < argc) && (!print_usage) )
    {
-      if ( strcmp(argv[arg_index], "-ll") == 0 )
-      {
-         arg_index++;
-         log_level = atoi(argv[arg_index++]);
-      }
-      else if ( strcmp(argv[arg_index], "-frombinfile") == 0 )
+      if ( strcmp(argv[arg_index], "-frombinfile") == 0 )
       {
          arg_index++;
          build_matrix_type      = -2;
@@ -1584,7 +1588,12 @@ main( hypre_int argc,
          fsai_kap_tolerance = (HYPRE_Real)atof(argv[arg_index++]);
       }
       /* end FSAI options */
-#if defined(HYPRE_USING_GPU)
+#if defined(HYPRE_USING_GPU) && !defined(HYPRE_TEST_USING_HOST)
+      else if ( strcmp(argv[arg_index], "-gpu_mpi") == 0 )
+      {
+         arg_index++;
+         gpu_aware_mpi = atoi(argv[arg_index++]);
+      }
       else if ( strcmp(argv[arg_index], "-mm_vendor") == 0 )
       {
          arg_index++;
@@ -1631,29 +1640,7 @@ main( hypre_int argc,
          use_curand = atoi(argv[arg_index++]);
       }
 #endif
-#if defined (HYPRE_USING_DEVICE_POOL)
-      else if ( strcmp(argv[arg_index], "-mempool_growth") == 0 )
-      {
-         arg_index++;
-         mempool_bin_growth = atoi(argv[arg_index++]);
-      }
-      else if ( strcmp(argv[arg_index], "-mempool_minbin") == 0 )
-      {
-         arg_index++;
-         mempool_min_bin = atoi(argv[arg_index++]);
-      }
-      else if ( strcmp(argv[arg_index], "-mempool_maxbin") == 0 )
-      {
-         arg_index++;
-         mempool_max_bin = atoi(argv[arg_index++]);
-      }
-      else if ( strcmp(argv[arg_index], "-mempool_maxcached") == 0 )
-      {
-         // Give maximum cached in Mbytes.
-         arg_index++;
-         mempool_max_cached_bytes = atoi(argv[arg_index++]) * 1024LL * 1024LL;
-      }
-#elif defined (HYPRE_USING_UMPIRE)
+#if defined (HYPRE_USING_UMPIRE)
       else if ( strcmp(argv[arg_index], "-umpire_dev_pool_size") == 0 )
       {
          arg_index++;
@@ -1702,11 +1689,6 @@ main( hypre_int argc,
          snprintf(mem_tracker_name, HYPRE_MAX_FILE_NAME_LEN, "%s", argv[arg_index++]);
       }
 #endif
-      else if ( strcmp(argv[arg_index], "-gpu_mpi") == 0 )
-      {
-         arg_index++;
-         gpu_aware_mpi = atoi(argv[arg_index++]);
-      }
       else
       {
          arg_index++;
@@ -2623,9 +2605,9 @@ main( hypre_int argc,
          hypre_printf("       0 = no output\n");
          hypre_printf("       1 = matrix and basic solver stats\n");
          hypre_printf("       2 = abs. and rel. residual norms\n");
-         hypre_printf("       3 = abs. residual norms for multi-tag vectors (GMRES only)\n");
-         hypre_printf("       4 = tagged rel. residual norms for multi-tag vectors (GMRES only)\n");
-         hypre_printf("       5 = rel. residual norms for multi-tag vectors (GMRES only)\n");
+         hypre_printf("       3 = abs. residual norms for multi-tag vectors (GMRES/FlexGMRES)\n");
+         hypre_printf("       4 = tagged rel. residual norms for multi-tag vectors (GMRES/FlexGMRES)\n");
+         hypre_printf("       5 = rel. residual norms for multi-tag vectors (GMRES/FlexGMRES)\n");
          hypre_printf("       6 = abs. and rel. error norms (GMRES only)\n");
          hypre_printf("       7 = abs. error norms for multi-tag vectors (GMRES only)\n");
          hypre_printf("       8 = tagged rel. error norms for multi-tag vectors (GMRES only)\n");
@@ -2830,12 +2812,7 @@ main( hypre_int argc,
       HYPRE_SetPrintErrorVerbosity(HYPRE_ERROR_GENERIC, 1);  /* turn generic errors on */
    }
 
-#if defined(HYPRE_USING_DEVICE_POOL)
-   /* To be effective, hypre_SetCubMemPoolSize must immediately follow HYPRE_Init */
-   HYPRE_SetGPUMemoryPoolSize( mempool_bin_growth, mempool_min_bin,
-                               mempool_max_bin, mempool_max_cached_bytes );
-
-#elif defined(HYPRE_USING_UMPIRE)
+#if defined(HYPRE_USING_UMPIRE)
    /* Setup Umpire pools */
    HYPRE_SetUmpireDevicePoolName("HYPRE_DEVICE_POOL_TEST");
    HYPRE_SetUmpireUMPoolName("HYPRE_UM_POOL_TEST");
@@ -2865,7 +2842,7 @@ main( hypre_int argc,
    /* default execution policy */
    HYPRE_SetExecutionPolicy(default_exec_policy);
 
-#if defined(HYPRE_USING_GPU)
+#if defined(HYPRE_USING_GPU) && !defined(HYPRE_TEST_USING_HOST)
    ierr = HYPRE_SetSpMVUseVendor(spmv_use_vendor); hypre_assert(ierr == 0);
    /* use vendor implementation for SpGEMM */
    ierr = HYPRE_SetSpGemmUseVendor(spgemm_use_vendor); hypre_assert(ierr == 0);
@@ -2876,9 +2853,8 @@ main( hypre_int argc,
    if (spgemm_rowest_mult > 0.0) { ierr = hypre_SetSpGemmRownnzEstimateMultFactor(spgemm_rowest_mult); hypre_assert(ierr == 0); }
    /* use cuRand for PMIS */
    HYPRE_SetUseGpuRand(use_curand);
-#endif
-
    HYPRE_SetGpuAwareMPI(gpu_aware_mpi);
+#endif
 
    /*-----------------------------------------------------------
     * Set up matrix
@@ -3550,7 +3526,7 @@ main( hypre_int argc,
       b = (HYPRE_ParVector) object;
 
       /* Initial guess */
-      hypre_Memset(values_d, 0, local_num_rows * sizeof(HYPRE_Complex), memory_location);
+      hypre_Memset(values_d, 0, (size_t)local_num_rows * sizeof(HYPRE_Complex), memory_location);
       HYPRE_IJVectorCreate(comm, first_local_col, last_local_col, &ij_x);
       HYPRE_IJVectorSetObjectType(ij_x, HYPRE_PARCSR);
       HYPRE_IJVectorSetNumComponents(ij_x, num_components);
@@ -5659,8 +5635,8 @@ main( hypre_int argc,
             parse the command line.
          */
          if (eu_level > -1) { HYPRE_EuclidSetLevel(pcg_precond, eu_level); }
-         if (eu_ilut) { HYPRE_EuclidSetILUT(pcg_precond, eu_ilut); }
-         if (eu_sparse_A) { HYPRE_EuclidSetSparseA(pcg_precond, eu_sparse_A); }
+         if (eu_ilut != 0.0) { HYPRE_EuclidSetILUT(pcg_precond, eu_ilut); }
+         if (eu_sparse_A != 0.0) { HYPRE_EuclidSetSparseA(pcg_precond, eu_sparse_A); }
          if (eu_row_scale) { HYPRE_EuclidSetRowScale(pcg_precond, eu_row_scale); }
          if (eu_bj) { HYPRE_EuclidSetBJ(pcg_precond, eu_bj); }
          HYPRE_EuclidSetStats(pcg_precond, eu_stats);
@@ -7425,8 +7401,8 @@ main( hypre_int argc,
          HYPRE_EuclidCreate(comm, &pcg_precond);
 
          if (eu_level > -1) { HYPRE_EuclidSetLevel(pcg_precond, eu_level); }
-         if (eu_ilut) { HYPRE_EuclidSetILUT(pcg_precond, eu_ilut); }
-         if (eu_sparse_A) { HYPRE_EuclidSetSparseA(pcg_precond, eu_sparse_A); }
+         if (eu_ilut != 0.0) { HYPRE_EuclidSetILUT(pcg_precond, eu_ilut); }
+         if (eu_sparse_A != 0.0) { HYPRE_EuclidSetSparseA(pcg_precond, eu_sparse_A); }
          if (eu_row_scale) { HYPRE_EuclidSetRowScale(pcg_precond, eu_row_scale); }
          if (eu_bj) { HYPRE_EuclidSetBJ(pcg_precond, eu_bj); }
          HYPRE_EuclidSetStats(pcg_precond, eu_stats);
@@ -8128,8 +8104,8 @@ main( hypre_int argc,
          HYPRE_EuclidCreate(comm, &pcg_precond);
 
          if (eu_level > -1) { HYPRE_EuclidSetLevel(pcg_precond, eu_level); }
-         if (eu_ilut) { HYPRE_EuclidSetILUT(pcg_precond, eu_ilut); }
-         if (eu_sparse_A) { HYPRE_EuclidSetSparseA(pcg_precond, eu_sparse_A); }
+         if (eu_ilut != 0.0) { HYPRE_EuclidSetILUT(pcg_precond, eu_ilut); }
+         if (eu_sparse_A != 0.0) { HYPRE_EuclidSetSparseA(pcg_precond, eu_sparse_A); }
          if (eu_row_scale) { HYPRE_EuclidSetRowScale(pcg_precond, eu_row_scale); }
          if (eu_bj) { HYPRE_EuclidSetBJ(pcg_precond, eu_bj); }
          HYPRE_EuclidSetStats(pcg_precond, eu_stats);
@@ -8502,8 +8478,8 @@ main( hypre_int argc,
             parse the command line.
          */
          if (eu_level > -1) { HYPRE_EuclidSetLevel(pcg_precond, eu_level); }
-         if (eu_ilut) { HYPRE_EuclidSetILUT(pcg_precond, eu_ilut); }
-         if (eu_sparse_A) { HYPRE_EuclidSetSparseA(pcg_precond, eu_sparse_A); }
+         if (eu_ilut != 0.0) { HYPRE_EuclidSetILUT(pcg_precond, eu_ilut); }
+         if (eu_sparse_A != 0.0) { HYPRE_EuclidSetSparseA(pcg_precond, eu_sparse_A); }
          if (eu_row_scale) { HYPRE_EuclidSetRowScale(pcg_precond, eu_row_scale); }
          if (eu_bj) { HYPRE_EuclidSetBJ(pcg_precond, eu_bj); }
          HYPRE_EuclidSetStats(pcg_precond, eu_stats);
@@ -8904,8 +8880,8 @@ main( hypre_int argc,
             parse the command line.
          */
          if (eu_level > -1) { HYPRE_EuclidSetLevel(pcg_precond, eu_level); }
-         if (eu_ilut) { HYPRE_EuclidSetILUT(pcg_precond, eu_ilut); }
-         if (eu_sparse_A) { HYPRE_EuclidSetSparseA(pcg_precond, eu_sparse_A); }
+         if (eu_ilut != 0.0) { HYPRE_EuclidSetILUT(pcg_precond, eu_ilut); }
+         if (eu_sparse_A != 0.0) { HYPRE_EuclidSetSparseA(pcg_precond, eu_sparse_A); }
          if (eu_row_scale) { HYPRE_EuclidSetRowScale(pcg_precond, eu_row_scale); }
          if (eu_bj) { HYPRE_EuclidSetBJ(pcg_precond, eu_bj); }
          HYPRE_EuclidSetStats(pcg_precond, eu_stats);
@@ -9758,7 +9734,7 @@ final:
 #endif
 
    /* when using cuda-memcheck --leak-check full, uncomment this */
-#if defined(HYPRE_USING_GPU)
+#if defined(HYPRE_USING_GPU) && !defined(HYPRE_TEST_USING_HOST)
    hypre_ResetDevice();
 #endif
 
@@ -10850,13 +10826,13 @@ BuildFuncTagsFromOneFile( MPI_Comm             comm,
    char                 *filename;
 
    HYPRE_Int             myid, num_procs;
-   HYPRE_Int             first_row_index;
-   HYPRE_Int             last_row_index;
+   HYPRE_BigInt          first_row_index;
+   HYPRE_BigInt          last_row_index;
    HYPRE_BigInt         *partitioning;
    HYPRE_Int            *dof_func = NULL;
    HYPRE_Int            *dof_func_local;
    HYPRE_Int             i, j;
-   HYPRE_Int             local_size;
+   HYPRE_BigInt          local_size;
    HYPRE_Int             global_size;
    hypre_MPI_Request    *requests;
    hypre_MPI_Status     *status, status0;
@@ -10919,10 +10895,10 @@ BuildFuncTagsFromOneFile( MPI_Comm             comm,
       for (i = 1; i < num_procs; i++)
       {
          hypre_MPI_Isend(&dof_func[partitioning[i]],
-                         (partitioning[i + 1] - partitioning[i]),
+                         (HYPRE_Int)(partitioning[i + 1] - partitioning[i]),
                          HYPRE_MPI_INT, i, 0, comm, &requests[i - 1]);
       }
-      for (i = 0; i < local_size; i++)
+      for (i = 0; i < (HYPRE_Int)local_size; i++)
       {
          dof_func_local[i] = dof_func[i];
       }
@@ -10932,7 +10908,7 @@ BuildFuncTagsFromOneFile( MPI_Comm             comm,
    }
    else
    {
-      hypre_MPI_Recv(dof_func_local, local_size, HYPRE_MPI_INT, 0, 0, comm, &status0);
+      hypre_MPI_Recv(dof_func_local, (HYPRE_Int)local_size, HYPRE_MPI_INT, 0, 0, comm, &status0);
    }
 
    *dof_func_ptr = dof_func_local;

@@ -22,7 +22,9 @@ hypre_BoomerAMGSetupStats( void               *amg_vdata,
 {
    hypre_GpuProfilingPushRange("AMGSetupStats");
 
-   MPI_Comm          comm = hypre_ParCSRMatrixComm(A);
+   MPI_Comm              comm = hypre_ParCSRMatrixComm(A);
+   HYPRE_MemoryLocation  memory_location = hypre_ParCSRMatrixMemoryLocation(A);
+   HYPRE_ExecutionPolicy exec = hypre_GetExecPolicy1(memory_location);
 
    hypre_ParAMGData *amg_data = (hypre_ParAMGData*) amg_vdata;
 
@@ -198,16 +200,15 @@ hypre_BoomerAMGSetupStats( void               *amg_vdata,
    omega = hypre_ParAMGDataOmega(amg_data);
    tol = hypre_ParAMGDataTol(amg_data);
 
-   block_mode = hypre_ParAMGDataBlockMode(amg_data);
-
-   send_buff     = hypre_CTAlloc(HYPRE_Real,  6, HYPRE_MEMORY_HOST);
+   block_mode  = hypre_ParAMGDataBlockMode(amg_data);
+   send_buff   = hypre_CTAlloc(HYPRE_Real,  6, HYPRE_MEMORY_HOST);
    gather_buff = hypre_CTAlloc(HYPRE_Real, 6, HYPRE_MEMORY_HOST);
 
    if (my_id == 0)
    {
-      hypre_printf("\n\n Num MPI tasks = %d\n\n", num_procs);
-      hypre_printf(" Num OpenMP threads = %d\n\n", num_threads);
-      hypre_printf("\nBoomerAMG SETUP PARAMETERS:\n\n");
+      hypre_printf("\n\n Num MPI tasks = %d\n", num_procs);
+      hypre_printf(" Num OpenMP threads = %d\n", num_threads);
+      hypre_printf(" Execution policy = %s\n\n", HYPRE_GetExecutionPolicyName(exec));
       hypre_printf(" Max levels = %d\n", hypre_ParAMGDataMaxLevels(amg_data));
       hypre_printf(" Num levels = %d\n\n", num_levels);
       hypre_printf(" Strength Threshold = %f\n",
@@ -281,94 +282,109 @@ hypre_BoomerAMGSetupStats( void               *amg_vdata,
       if (agg_num_levels > 0)
       {
          hypre_printf("\n No. of levels of aggressive coarsening: %d\n\n", agg_num_levels);
-         if (agg_interp_type == 4)
+         if (agg_interp_type == 1)
          {
-            hypre_printf(" Interpolation on agg. levels= multipass interpolation\n");
-         }
-         else if (agg_interp_type == 1)
-         {
-            hypre_printf(" Interpolation on agg. levels = 2-stage extended+i interpolation \n");
+            hypre_printf(" Interpolation on agg. levels = 2-stage extended+i\n");
          }
          else if (agg_interp_type == 2)
          {
-            hypre_printf(" Interpolation on agg. levels = 2-stage std interpolation \n");
+            hypre_printf(" Interpolation on agg. levels = 2-stage standard\n");
          }
          else if (agg_interp_type == 3)
          {
-            hypre_printf(" Interpolation on agg. levels = 2-stage extended interpolation \n");
+            hypre_printf(" Interpolation on agg. levels = 2-stage extended\n");
+         }
+         else if (agg_interp_type == 4)
+         {
+            hypre_printf(" Interpolation on agg. levels = multipass\n");
+         }
+         else if (agg_interp_type == 5)
+         {
+            hypre_printf(" Interpolation on agg. levels = matrix-matrix 2-stage extended\n");
+         }
+         else if (agg_interp_type == 6)
+         {
+            hypre_printf(" Interpolation on agg. levels = matrix-matrix 2-stage extended+i\n");
+         }
+         else if (agg_interp_type == 7)
+         {
+            hypre_printf(" Interpolation on agg. levels = matrix-matrix 2-stage extended+e\n");
+         }
+         else if (agg_interp_type == 8)
+         {
+            hypre_printf(" Interpolation on agg. levels = matrix-matrix multipass\n");
          }
       }
 
-
       if (coarsen_type)
+      {
          hypre_printf(" measures are determined %s\n\n",
                       (measure_type ? "globally" : "locally"));
-
-      hypre_printf( "\n No global partition option chosen.\n\n");
+      }
 
       if (interp_type == 0)
       {
-         hypre_printf(" Interpolation = modified classical interpolation\n");
+         hypre_printf(" Interpolation = modified classical\n");
       }
       else if (interp_type == 1)
       {
-         hypre_printf(" Interpolation = LS interpolation \n");
+         hypre_printf(" Interpolation = LS\n");
       }
       else if (interp_type == 2)
       {
-         hypre_printf(" Interpolation = modified classical interpolation for hyperbolic PDEs\n");
+         hypre_printf(" Interpolation = modified classical for hyperbolic PDEs\n");
       }
       else if (interp_type == 3)
       {
-         hypre_printf(" Interpolation = direct interpolation with separation of weights\n");
+         hypre_printf(" Interpolation = direct with separation of weights\n");
       }
       else if (interp_type == 4)
       {
-         hypre_printf(" Interpolation = multipass interpolation\n");
+         hypre_printf(" Interpolation = multipass\n");
       }
       else if (interp_type == 5)
       {
-         hypre_printf(" Interpolation = multipass interpolation with separation of weights\n");
+         hypre_printf(" Interpolation = multipass with separation of weights\n");
       }
       else if (interp_type == 6)
       {
-         hypre_printf(" Interpolation = extended+i interpolation\n");
+         hypre_printf(" Interpolation = extended+i\n");
       }
       else if (interp_type == 7)
       {
-         hypre_printf(" Interpolation = extended+i interpolation (if no common C point)\n");
+         hypre_printf(" Interpolation = extended+i (if no common C point)\n");
       }
       else if (interp_type == 12)
       {
-         hypre_printf(" Interpolation = F-F interpolation\n");
+         hypre_printf(" Interpolation = F-F\n");
       }
       else if (interp_type == 13)
       {
-         hypre_printf(" Interpolation = F-F1 interpolation\n");
+         hypre_printf(" Interpolation = F-F1\n");
       }
       else if (interp_type == 14)
       {
-         hypre_printf(" Interpolation = extended interpolation\n");
+         hypre_printf(" Interpolation = extended\n");
       }
       else if (interp_type == 15)
       {
-         hypre_printf(" Interpolation = direct interpolation with separation of weights\n");
+         hypre_printf(" Interpolation = direct with separation of weights\n");
       }
       else if (interp_type == 16)
       {
-         hypre_printf(" Interpolation = extended interpolation with MMs\n");
+         hypre_printf(" Interpolation = extended with MMs\n");
       }
       else if (interp_type == 17)
       {
-         hypre_printf(" Interpolation = extended+i interpolation with MMs\n");
+         hypre_printf(" Interpolation = extended+i with MMs\n");
       }
       else if (interp_type == 8)
       {
-         hypre_printf(" Interpolation = standard interpolation\n");
+         hypre_printf(" Interpolation = standard\n");
       }
       else if (interp_type == 9)
       {
-         hypre_printf(" Interpolation = standard interpolation with separation of weights\n");
+         hypre_printf(" Interpolation = standard with separation of weights\n");
       }
       else if (interp_type == 10)
       {
@@ -386,7 +402,7 @@ hypre_BoomerAMGSetupStats( void               *amg_vdata,
       }
       else if (interp_type == 100)
       {
-         hypre_printf(" Interpolation = one-point interpolation \n");
+         hypre_printf(" Interpolation = one-point\n");
       }
 
       if (restri_type == 1)
@@ -443,13 +459,13 @@ hypre_BoomerAMGSetupStats( void               *amg_vdata,
       if (block_mode)
       {
          fine_size = hypre_ParCSRBlockMatrixGlobalNumRows(A_block_array[level]);
-         global_nonzeros = hypre_ParCSRBlockMatrixNumNonzeros(A_block_array[level]);
+         global_nonzeros = (HYPRE_Real) hypre_ParCSRBlockMatrixNumNonzeros(A_block_array[level]);
          ndigits[2] = hypre_max(hypre_ndigits((HYPRE_BigInt) global_nonzeros / fine_size ), ndigits[2]);
       }
       else
       {
          fine_size = hypre_ParCSRMatrixGlobalNumRows(A_array[level]);
-         global_nonzeros = hypre_ParCSRMatrixNumNonzeros(A_array[level]);
+         global_nonzeros = hypre_ParCSRMatrixDNumNonzeros(A_array[level]);
          ndigits[2] = hypre_max(hypre_ndigits((HYPRE_BigInt) global_nonzeros / fine_size ), ndigits[2]);
       }
 
@@ -829,8 +845,8 @@ hypre_BoomerAMGSetupStats( void               *amg_vdata,
 
 
          }
-         avg_entries = ((HYPRE_Real) (global_nonzeros - coarse_size)) / ((HYPRE_Real) (
-                                                                            fine_size - coarse_size));
+         avg_entries = (global_nonzeros - (HYPRE_Real) coarse_size) /
+                       ((HYPRE_Real) (fine_size - coarse_size));
       }
       else
       {
@@ -932,8 +948,8 @@ hypre_BoomerAMGSetupStats( void               *amg_vdata,
             }
 
          }
-         avg_entries = ((HYPRE_Real) (global_nonzeros - coarse_size)) / ((HYPRE_Real) (
-                                                                            fine_size - coarse_size));
+         avg_entries = (global_nonzeros - (HYPRE_Real) coarse_size) /
+                       ((HYPRE_Real) (fine_size - coarse_size));
 
          if (P_diag_clone != P_diag)
          {
@@ -946,7 +962,7 @@ hypre_BoomerAMGSetupStats( void               *amg_vdata,
          }
       }
 
-      numrows = row_starts[1] - row_starts[0];
+      numrows = (HYPRE_Int) (row_starts[1] - row_starts[0]);
       if (!numrows) /* if we don't have any rows, then don't have this count toward
                        min row sum or min num entries */
       {

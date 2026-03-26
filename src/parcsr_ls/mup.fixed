@@ -678,6 +678,7 @@ hypre_ILUGetFinalRelativeResidualNorm
 hypre_ILUGetInteriorExteriorPerm
 hypre_ILUGetIterativeSetupHistory
 hypre_ILUGetLocalPerm
+hypre_ILUGetName
 hypre_ILUGetNumIterations
 hypre_ILUGetPermddPQ
 hypre_ILUGetPermddPQPre
@@ -777,6 +778,7 @@ hypre_MGRBlockRelaxSolveDevice
 hypre_MGRBuildAff
 hypre_MGRBuildBlockJacobiP
 hypre_MGRBuildBlockJacobiWp
+hypre_MGRBuildBlockRowLumpedInterp
 hypre_MGRBuildCoarseOperator
 hypre_MGRBuildInterp
 hypre_MGRBuildInterpApproximateInverse
@@ -791,6 +793,7 @@ hypre_MGRBuildPHost
 hypre_MGRBuildRFromWr
 hypre_MGRBuildRFromWrHost
 hypre_MGRBuildRestrict
+hypre_MGRBuildRowLumpedInterp
 hypre_MGRCoarseParms
 hypre_MGRCoarsen
 hypre_MGRColLumpedRestrict
@@ -802,6 +805,10 @@ hypre_MGRDataPrint
 hypre_MGRDestroy
 hypre_MGRDestroyFrelaxVcycleData
 hypre_MGRDestroyGSElimData
+hypre_MGRDirectSolverCreate
+hypre_MGRDirectSolverDestroy
+hypre_MGRDirectSolverSetup
+hypre_MGRDirectSolverSolve
 hypre_MGRFrelaxVcycle
 hypre_MGRGetCoarseGridConvergenceFactor
 hypre_MGRGetCoarseGridName

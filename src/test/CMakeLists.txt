@@ -23,7 +23,16 @@ set(TEST_SRCS
   ams_driver.c
   struct_migrate.c
   ij_assembly.c
+  test_csr_overlap.c
 )
+
+# Collect targets derived from source file names
+set(HYPRE_TEST_DRIVER_TARGETS)
+foreach(src_file ${TEST_SRCS})
+  get_filename_component(exec_name ${src_file} NAME_WE)
+  list(APPEND HYPRE_TEST_DRIVER_TARGETS ${exec_name})
+endforeach()
+list(APPEND HYPRE_TEST_DRIVER_TARGETS sstructmat)
 
 # Mixed precision test executables (only built when mixed precision is enabled)
 if(HYPRE_ENABLE_MIXED_PRECISION)
@@ -32,6 +41,11 @@ if(HYPRE_ENABLE_MIXED_PRECISION)
     test_mp_pcg_3d.c
   )
   add_hypre_executables("${MP_TEST_SRCS}")
+
+  foreach(src_file ${MP_TEST_SRCS})
+    get_filename_component(exec_name ${src_file} NAME_WE)
+    list(APPEND HYPRE_TEST_DRIVER_TARGETS ${exec_name})
+  endforeach()
 endif()
 
 # Build each executable
@@ -40,47 +54,50 @@ add_hypre_executables("${TEST_SRCS}")
 # Special treatment for sstructmat as it depends on sstruct_helpers (not an executable)
 add_hypre_executable("sstructmat.c" "sstruct_helpers.c")
 
+# Ensure test executables land in the top-level build test directory
+set_target_properties(${HYPRE_TEST_DRIVER_TARGETS} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/test)
+
+# Install test drivers in ${CMAKE_INSTALL_PREFIX}/bin when tests are enabled
+install(TARGETS ${HYPRE_TEST_DRIVER_TARGETS} RUNTIME DESTINATION bin)
+
 # Copy test input files
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/TEST_sstruct/sstruct.in.default
                ${CMAKE_CURRENT_BINARY_DIR}/sstruct.in.default COPYONLY)
 
-# Install test drivers in ${CMAKE_INSTALL_PREFIX}/bin when tests are enabled
-if(HYPRE_BUILD_TESTS)
-  # Collect targets derived from source file names
-  set(HYPRE_TEST_DRIVER_TARGETS)
-  foreach(src_file ${TEST_SRCS})
-    get_filename_component(exec_name ${src_file} NAME_WE)
-    list(APPEND HYPRE_TEST_DRIVER_TARGETS ${exec_name})
-  endforeach()
-
-  # Mixed precision drivers when enabled
-  if(HYPRE_ENABLE_MIXED_PRECISION)
-    foreach(src_file ${MP_TEST_SRCS})
-      get_filename_component(exec_name ${src_file} NAME_WE)
-      list(APPEND HYPRE_TEST_DRIVER_TARGETS ${exec_name})
-    endforeach()
-  endif()
-
-  install(TARGETS ${HYPRE_TEST_DRIVER_TARGETS}
-          RUNTIME DESTINATION bin)
-endif()
-
 # Add check target
 find_program(BASH_PROGRAM bash)
 
-# Run check target
-add_custom_target(check
-  COMMAND ${CMAKE_COMMAND} -E echo "Checking the library..."
-  COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:ij> 2> ij.err
-  COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:struct> 2> struct.err
-  COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:sstruct> 2> sstruct.err
-  COMMAND ${CMAKE_COMMAND} -E echo "Test error files:"
-  COMMAND ${CMAKE_COMMAND} -E cat ij.err struct.err sstruct.err
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS ij struct sstruct
-  COMMENT "Running basic library check"
-  VERBATIM
-)
+# Allow duplicate custom targets to handle collision with dependencies (e.g., Umpire)
+set_property(GLOBAL PROPERTY ALLOW_DUPLICATE_CUSTOM_TARGETS TRUE)
+
+# Define HYPRE's check target (this will override any existing check target)
+if (HYPRE_ENABLE_MPI)
+  add_custom_target(check
+    COMMAND ${CMAKE_COMMAND} -E echo "Checking the library..."
+    COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:ij> 2> ij.err
+    COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:struct> 2> struct.err
+    COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 1 $<TARGET_FILE:sstruct> 2> sstruct.err
+    COMMAND ${CMAKE_COMMAND} -E echo "Test error files:"
+    COMMAND ${CMAKE_COMMAND} -E cat ij.err struct.err sstruct.err
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ij struct sstruct
+    COMMENT "Running basic library check"
+    VERBATIM
+  )
+else ()
+  add_custom_target(check
+    COMMAND ${CMAKE_COMMAND} -E echo "Checking the library..."
+    COMMAND $<TARGET_FILE:ij> 2> ij.err
+    COMMAND $<TARGET_FILE:struct> 2> struct.err
+    COMMAND $<TARGET_FILE:sstruct> 2> sstruct.err
+    COMMAND ${CMAKE_COMMAND} -E echo "Test error files:"
+    COMMAND ${CMAKE_COMMAND} -E cat ij.err struct.err sstruct.err
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ij struct sstruct
+    COMMENT "Running basic library check"
+    VERBATIM
+  )
+endif ()
 
 # Add checkpar target for parallel testing
 add_custom_target(checkpar
@@ -170,7 +187,38 @@ if(BUILD_TESTING)
     DEPENDS sstruct
     FAIL_REGULAR_EXPRESSION "Failed"
   )
+
+  # Unit tests
+  add_test(NAME test_unit
+    COMMAND ${BASH_PROGRAM} -c "\
+      ${BASH_PROGRAM} ${CMAKE_CURRENT_SOURCE_DIR}/runtest.sh \
+        -atol ${HYPRE_CHECK_TOL} \
+        -mpi \"${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG}\" \
+        ${CMAKE_CURRENT_SOURCE_DIR}/TEST_unit/unit.sh && \
+      ${BASH_PROGRAM} ${CMAKE_CURRENT_SOURCE_DIR}/checktest.sh && \
+      ${BASH_PROGRAM} ${CMAKE_CURRENT_SOURCE_DIR}/cleantest.sh"
+  )
+  set_tests_properties(test_unit PROPERTIES
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS test_csr_overlap
+    FAIL_REGULAR_EXPRESSION "Failed"
+  )
 endif()
+
+# Add unit_tests make target for convenience
+add_custom_target(unit_tests
+  COMMAND ${CMAKE_COMMAND} -E echo "Running unit tests..."
+  COMMAND ${BASH_PROGRAM} ${CMAKE_CURRENT_SOURCE_DIR}/runtest.sh
+          -atol ${HYPRE_CHECK_TOL}
+          -mpi "${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG}"
+          ${CMAKE_CURRENT_SOURCE_DIR}/TEST_unit/unit.sh
+  COMMAND ${BASH_PROGRAM} ${CMAKE_CURRENT_SOURCE_DIR}/checktest.sh
+  COMMAND ${BASH_PROGRAM} ${CMAKE_CURRENT_SOURCE_DIR}/cleantest.sh
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS test_csr_overlap
+  COMMENT "Running unit tests"
+  VERBATIM
+)
 
 # Optional Fortran-based drivers
 if(HYPRE_ENABLE_FORTRAN)

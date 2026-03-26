@@ -34,7 +34,6 @@
 #undef HYPRE_PrintDeviceInfo
 #undef HYPRE_PrintErrorMessages
 #undef HYPRE_SetExecutionPolicy
-#undef HYPRE_SetGPUMemoryPoolSize
 #undef HYPRE_SetGpuAwareMPI
 #undef HYPRE_SetLogLevel
 #undef HYPRE_SetMemoryLocation
@@ -44,6 +43,9 @@
 #undef HYPRE_SetSpMVUseVendor
 #undef HYPRE_SetSpTransUseVendor
 #undef HYPRE_SetUseGpuRand
+#undef HYPRE_SolverDestroy
+#undef HYPRE_SolverSetup
+#undef HYPRE_SolverSolve
 #undef HYPRE_Version
 #undef HYPRE_VersionNumber
 #undef hypre_BeginTiming_fcn
@@ -83,6 +85,7 @@
 #undef hypre_Free
 #undef hypre_GetDevice
 #undef hypre_GetDeviceCount
+#undef hypre_GetDeviceGSMethod
 #undef hypre_GetDeviceLastError
 #undef hypre_GetDeviceMaxShmemSize
 #undef hypre_GetExecPolicy1
@@ -202,7 +205,6 @@
 #undef hypre_ReAlloc_v2
 #undef hypre_RestoreLogLevel
 #undef hypre_SeedRand
-#undef hypre_SetCubMemPoolSize
 #undef hypre_SetDevice
 #undef hypre_SetFinalized
 #undef hypre_SetGaussSeidelMethod
@@ -219,8 +221,6 @@
 #undef hypre_SetSpMVUseVendor
 #undef hypre_SetSpTransUseVendor
 #undef hypre_SetUseGpuRand
-#undef hypre_SetUserDeviceMalloc
-#undef hypre_SetUserDeviceMfree
 #undef hypre_UniqueIntArrayND
 #undef hypre_UnorderedBigIntMapCreate
 #undef hypre_UnorderedBigIntMapDestroy

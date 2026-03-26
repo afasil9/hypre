@@ -926,14 +926,14 @@ hypre_ParCSRMatrixExtractAExt( hypre_ParCSRMatrix *A,
    ( &A_ext_i, &A_ext_j, &A_ext_data, pA_ext_row_map,
      &num_nonzeros,
      data, 1, comm, comm_pkg,
-     num_cols_A, num_recvs, num_sends,
+     num_recvs, num_sends,
      first_col_diag, A->row_starts,
      recv_vec_starts, send_map_starts, send_map_elmts,
      diag_i, diag_j, offd_i, offd_j, col_map_offd,
      diag_data, offd_data
    );
 
-   A_ext = hypre_CSRMatrixCreate(num_rows_A_ext, num_cols_A, num_nonzeros);
+   A_ext = hypre_CSRMatrixCreate(num_rows_A_ext, (HYPRE_Int) num_cols_A, num_nonzeros);
    hypre_CSRMatrixI(A_ext) = A_ext_i;
    hypre_CSRMatrixBigJ(A_ext) = A_ext_j;
    if (data) { hypre_CSRMatrixData(A_ext) = A_ext_data; }

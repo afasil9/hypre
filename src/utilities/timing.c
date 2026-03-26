@@ -12,9 +12,14 @@
  *****************************************************************************/
 
 #define HYPRE_TIMING
-#define HYPRE_TIMING_GLOBALS
 #include "_hypre_utilities.h"
 #include "timing.h"
+
+/* Global variable for timing */
+/* guard definition of global variables to avoid linker errors for multiprecision build */
+#if defined (hypre_DEFINE_GLOBAL)
+hypre_TimingType *hypre_global_timing = NULL;
+#endif
 
 /*-------------------------------------------------------
  * Timing macros
@@ -279,8 +284,7 @@ hypre_EndTiming_fcn( HYPRE_Int time_index )
    if (hypre_TimingState(time_index) == 0)
    {
 #if defined(HYPRE_USING_GPU)
-      hypre_Handle *hypre_handle_ = hypre_handle();
-      if (hypre_HandleDefaultExecPolicy(hypre_handle_) == HYPRE_EXEC_DEVICE)
+      if (hypre_HandleDefaultExecPolicy(hypre_handle()) == HYPRE_EXEC_DEVICE)
       {
          hypre_SyncDevice();
       }
@@ -372,7 +376,7 @@ hypre_PrintTiming_fcn( const char     *heading,
 
             /* print wall clock info */
             hypre_printf("  wall clock time = %f seconds\n", wall_time);
-            if (wall_time)
+            if (wall_time != 0.0)
             {
                wall_mflops = hypre_TimingFLOPS(i) / wall_time / 1.0E6;
             }
@@ -384,7 +388,7 @@ hypre_PrintTiming_fcn( const char     *heading,
 
             /* print CPU clock info */
             hypre_printf("  cpu clock time  = %f seconds\n", cpu_time);
-            if (cpu_time)
+            if (cpu_time != 0.0)
             {
                cpu_mflops = hypre_TimingFLOPS(i) / cpu_time / 1.0E6;
             }

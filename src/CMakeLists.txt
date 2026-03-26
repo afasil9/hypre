@@ -22,9 +22,9 @@ if(POLICY CMP0090)
 endif()
 
 # The version number.
-set(HYPRE_VERSION 3.0.0)
-set(HYPRE_NUMBER  30000)
-set(HYPRE_DATE    2025/09/26)
+set(HYPRE_VERSION 3.1.0)
+set(HYPRE_NUMBER  30100)
+set(HYPRE_DATE    2026/01/23)
 set(HYPRE_TIME    00:00:00)
 set(HYPRE_BUGS    https://github.com/hypre-space/hypre/issues)
 set(HYPRE_SRCDIR  "${PROJECT_SOURCE_DIR}")
@@ -86,6 +86,7 @@ set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeR
 # Set debug flags based on compiler
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(HYPRE_DEBUG ON CACHE INTERNAL "")
+  set(_hypre_fpe_trap_default ON CACHE INTERNAL "")
   if(CMAKE_C_COMPILER_ID MATCHES "Intel")
     target_compile_options(${PROJECT_NAME} PRIVATE
       $<$<COMPILE_LANGUAGE:C>:-O0 -Wall -Wremarks>
@@ -127,6 +128,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
       $<$<COMPILE_LANGUAGE:C>:-O0>
       $<$<COMPILE_LANGUAGE:CXX>:-O0>)
   endif()
+else()
+  set(_hypre_fpe_trap_default OFF CACHE INTERNAL "")
 endif()
 
 # Print the configuration
@@ -155,6 +158,7 @@ set_hypre_option(BASE HYPRE_ENABLE_PRINT_ERRORS         "Print HYPRE errors" OFF
 set_hypre_option(SKIP HYPRE_ENABLE_TIMING               "Use HYPRE timing routines" OFF)
 set_hypre_option(SKIP HYPRE_ENABLE_STRICT_CHECKING      "Use strict error checking (Sequential only)" OFF)
 set_hypre_option(SKIP HYPRE_ENABLE_MEMORY_TRACKER       "Use internal memory tracker (Debug only)" OFF)
+set_hypre_option(BASE HYPRE_ENABLE_FPE_TRAP             "Enable floating-point exception trap" ${_hypre_fpe_trap_default})
 set_hypre_option(BASE HYPRE_ENABLE_TEST_USING_HOST      "Execute tests on host (CPU)" OFF)
 set_hypre_option(BASE HYPRE_ENABLE_HOST_MEMORY          "Use host memory" ON)
 set_hypre_option(BASE HYPRE_BUILD_EXAMPLES              "Build examples" OFF)
@@ -175,19 +179,20 @@ set_hypre_option(CUDA HYPRE_ENABLE_CUSPARSE             "Use cuSPARSE" ON)
 set_hypre_option(CUDA HYPRE_ENABLE_CUSOLVER             "Use cuSOLVER" ON)
 set_hypre_option(CUDA HYPRE_ENABLE_CUBLAS               "Use cuBLAS" ON)
 set_hypre_option(CUDA HYPRE_ENABLE_CURAND               "Use cuRAND" ON)
-set_hypre_option(CUDA HYPRE_ENABLE_DEVICE_POOL          "Use CUB's device memory pool" OFF)
 # HIP options
 set_hypre_option(HIP  HYPRE_ENABLE_ROCSPARSE            "Use rocSPARSE" ON)
 set_hypre_option(HIP  HYPRE_ENABLE_ROCSOLVER            "Use rocSOLVER" ON)
 set_hypre_option(HIP  HYPRE_ENABLE_ROCBLAS              "Use rocBLAS" ON)
 set_hypre_option(HIP  HYPRE_ENABLE_ROCRAND              "Use rocRAND" ON)
 set_hypre_option(HIP  HYPRE_ENABLE_ROCTHRUST            "Use rocThrust" ON)
+set_hypre_option(HIP  HYPRE_ENABLE_ROCPRIM              "Use rocPRIM" ON)
 # oneAPI options
 set_hypre_option(SYCL HYPRE_ENABLE_ONEMKLSPARSE         "Use oneMKL sparse" ON)
 set_hypre_option(SYCL HYPRE_ENABLE_ONEMKLBLAS           "Use oneMKL blas" ON)
 set_hypre_option(SYCL HYPRE_ENABLE_ONEMKLRAND           "Use oneMKL rand" ON)
 
 # TPL options
+set_hypre_option(TPL  HYPRE_BUILD_UMPIRE                "Automatically download, build, and install Umpire before hypre" OFF)
 set_hypre_option(TPL  HYPRE_ENABLE_UMPIRE               "Use Umpire Allocator for device and unified memory" OFF)
 set_hypre_option(TPL  HYPRE_ENABLE_UMPIRE_HOST          "Use Umpire Allocator for host memory" OFF)
 set_hypre_option(TPL  HYPRE_ENABLE_UMPIRE_PINNED        "Use Umpire Allocator for pinned memory" OFF)
@@ -212,10 +217,12 @@ set_hypre_option(SKIP TPL_LAPACK_LIBRARIES              "Absolute paths to LAPAC
 set_hypre_option(SKIP TPL_FEI_INCLUDE_DIRS              "Absolute paths to FEI include directories [Optional]." "")
 
 # Extra flags
+set_hypre_option(SKIP HYPRE_ALLOW_BIGINT_WITH_LP64_BLAS "Allow potentially unsafe BIGINT with external LP64 BLAS/LAPACK" OFF)
 set(HYPRE_WITH_EXTRA_CFLAGS "" CACHE STRING             "Define extra C compile flags")
 set(HYPRE_WITH_EXTRA_CXXFLAGS "" CACHE STRING           "Define extra CXX compile flags")
 set(HYPRE_SYCL_TARGET "" CACHE STRING                   "Target SYCL architecture, e.g. 'spir64_gen'.")
 set(HYPRE_SYCL_TARGET_BACKEND "" CACHE STRING           "Additional SYCL backend options, e.g. '-device 12.1.0,12.4.0'.")
+set(HYPRE_UMPIRE_VERSION "latest" CACHE STRING          "Umpire version/tag to build (e.g., v2024.07.1 or latest)")
 
 # Set possible values for the Fortran name mangling schemes
 set(HYPRE_ENABLE_FMANGLE "UNSPECIFIED" CACHE STRING         "Set the Fortran name mangling scheme")
@@ -247,33 +254,33 @@ set_internal_hypre_option("" COMPLEX)
 set_internal_hypre_option("" MIXED_PRECISION)
 set_internal_hypre_option("" TEST_USING_HOST)
 set_internal_hypre_option("" PRINT_ERRORS)
+set_internal_hypre_option(USING MEMORY_TRACKER)
 set_internal_hypre_option(USING HYPRE_BLAS)
 set_internal_hypre_option(USING HYPRE_LAPACK)
-set_internal_hypre_option(USING MEMORY_TRACKER)
 set_internal_hypre_option(USING HOPSCOTCH)
 set_internal_hypre_option(USING GPU_AWARE_MPI)
 set_internal_hypre_option(USING CUDA_STREAMS)
 set_internal_hypre_option(USING THRUST_NOSYNC)
-set_internal_hypre_option(USING DEVICE_POOL)
 set_internal_hypre_option(USING OPENMP)
 set_internal_hypre_option(USING CUDA)
 set_internal_hypre_option(USING HIP)
 set_internal_hypre_option(USING SYCL)
 set_internal_hypre_option(USING MAGMA)
 set_internal_hypre_option(USING CALIPER)
+set_internal_hypre_option(USING FPE_TRAP)
 
 # Check for conflicting options
-ensure_options_differ(HYPRE_ENABLE_SINGLE HYPRE_ENABLE_LONG_DOUBLE)
-ensure_options_differ(HYPRE_ENABLE_CUDA   HYPRE_ENABLE_HIP)
-ensure_options_differ(HYPRE_ENABLE_CUDA   HYPRE_ENABLE_SYCL)
-ensure_options_differ(HYPRE_ENABLE_CUDA   HYPRE_ENABLE_BIGINT)
-ensure_options_differ(HYPRE_ENABLE_CUDA   HYPRE_ENABLE_LONG_DOUBLE)
-ensure_options_differ(HYPRE_ENABLE_SYCL   HYPRE_ENABLE_HIP )
-ensure_options_differ(HYPRE_ENABLE_SYCL   HYPRE_ENABLE_BIGINT)
-ensure_options_differ(HYPRE_ENABLE_SYCL   HYPRE_ENABLE_LONG_DOUBLE)
-ensure_options_differ(HYPRE_ENABLE_HIP    HYPRE_ENABLE_BIGINT)
-ensure_options_differ(HYPRE_ENABLE_HIP    HYPRE_ENABLE_LONG_DOUBLE)
-ensure_options_differ(HYPRE_ENABLE_LTO    HYPRE_ENABLE_SYCL) # TODO: allow LTO with SYCL
+ensure_options_differ(SINGLE LONG_DOUBLE)
+ensure_options_differ(CUDA   HIP)
+ensure_options_differ(CUDA   SYCL)
+ensure_options_differ(CUDA   BIGINT)
+ensure_options_differ(CUDA   LONG_DOUBLE)
+ensure_options_differ(SYCL   HIP )
+ensure_options_differ(SYCL   BIGINT)
+ensure_options_differ(SYCL   LONG_DOUBLE)
+ensure_options_differ(HIP    BIGINT)
+ensure_options_differ(HIP    LONG_DOUBLE)
+ensure_options_differ(LTO    SYCL) # TODO: allow LTO with SYCL
 
 # Enable CTest support if tests are being built
 if (HYPRE_BUILD_TESTS)
@@ -298,10 +305,19 @@ if (HYPRE_ENABLE_STRICT_CHECKING)
   set(HYPRE_HAVE_MPI OFF CACHE INTERNAL "")
   set(HYPRE_SEQUENTIAL ON CACHE INTERNAL "")
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "" FORCE)
-  if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+  if(CMAKE_C_COMPILER_ID MATCHES "GNU")
     target_compile_options(${PROJECT_NAME} PRIVATE
-      $<$<COMPILE_LANGUAGE:C>:-O0 -Wall -Wextra -pedantic -Wfloat-conversion -fsingle-precision-constant -Werror -Werror=vla>
-      $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -Wshadow -fno-implicit-templates -Woverloaded-virtual -ansi -pedantic -Werror=vla>)
+      $<$<COMPILE_LANGUAGE:C>:-O0 -Wall -Wextra -pedantic -Wfloat-conversion
+      -fsingle-precision-constant -Werror -Werror=vla -Wconversion>
+      $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -Wshadow -fno-implicit-templates
+      -Woverloaded-virtual -ansi -pedantic -Werror=vla -Wconversion>)
+
+  elseif(CMAKE_C_COMPILER_ID MATCHES "Clang")
+    target_compile_options(${PROJECT_NAME} PRIVATE
+      $<$<COMPILE_LANGUAGE:C>:-O0 -Wall -Wextra -pedantic -Wfloat-conversion
+      -Wimplicit-float-conversion -Werror -Werror=vla -Wconversion>
+      $<$<COMPILE_LANGUAGE:CXX>:-Wall -Wextra -Wshadow -Wimplicit-float-conversion
+      -fno-implicit-templates -Woverloaded-virtual -ansi -pedantic -Werror=vla -Wconversion>)
 
   elseif(CMAKE_C_COMPILER_ID MATCHES "Intel")
     target_compile_options(${PROJECT_NAME} PRIVATE
@@ -337,6 +353,10 @@ endif ()
 if (HYPRE_ENABLE_FEI)
   set(HYPRE_USING_FEI ON CACHE INTERNAL "")
   message(WARNING "CMake support for FEI is not complete!")
+endif ()
+
+if (HYPRE_BUILD_UMPIRE)
+  set(HYPRE_ENABLE_UMPIRE ON CACHE BOOL "Use Umpire Allocator for device and unified memory" FORCE)
 endif ()
 
 # FEI doesn't currently compile with shared
@@ -434,6 +454,11 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
+# Ensure installed shared library can locate dependency shared libs (e.g., umpire) at runtime
+if(BUILD_SHARED_LIBS)
+  set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH "$ORIGIN")
+endif()
+
 # Set headers
 set(HYPRE_MAIN_HEADERS
   ${CMAKE_CURRENT_BINARY_DIR}/HYPRE_config.h
@@ -455,6 +480,7 @@ setup_tpl(magma)
 setup_tpl(caliper)
 setup_tpl_or_internal(blas)
 setup_tpl_or_internal(lapack)
+check_bigint_external_lapack_abi()
 
 # Some TPLs need C++ to be enabled (GPU already enables C++ by default)
 if(HYPRE_NEEDS_CXX AND NOT HYPRE_USING_GPU)
@@ -473,7 +499,8 @@ configure_file(
   )
 
 # Headers and sources: remaining subdirectories
-set(HYPRE_DIRS utilities multivector krylov seq_mv seq_block_mv parcsr_mv parcsr_block_mv distributed_matrix IJ_mv matrix_matrix distributed_ls parcsr_ls struct_mv struct_ls sstruct_mv sstruct_ls)
+# Begin with "struct/sstruct" folders, so their (large) files get compiled first
+set(HYPRE_DIRS struct_mv struct_ls sstruct_mv sstruct_ls utilities multivector krylov seq_mv seq_block_mv parcsr_mv parcsr_block_mv distributed_matrix IJ_mv matrix_matrix distributed_ls parcsr_ls)
 foreach (DIR IN LISTS HYPRE_DIRS)
   add_subdirectory(${DIR})
   target_include_directories(${PROJECT_NAME} PUBLIC
@@ -586,11 +613,15 @@ install(EXPORT HYPRETargets
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/HYPRE"
 )
 
-# Export from build tree
-export(EXPORT HYPRETargets
-  FILE "${CMAKE_CURRENT_BINARY_DIR}/HYPRETargets.cmake"
-  NAMESPACE HYPRE::
-)
+# Export from build tree (skip when auto-building Umpire to avoid exporting private subproject deps)
+if(NOT (HYPRE_BUILD_UMPIRE AND TARGET umpire))
+  export(EXPORT HYPRETargets
+    FILE "${CMAKE_CURRENT_BINARY_DIR}/HYPRETargets.cmake"
+    NAMESPACE HYPRE::
+  )
+else()
+  message(STATUS "Skipping build-tree export of HYPRETargets due to auto-built Umpire dependency")
+endif()
 
 # Declare an alias so that consumers can depend on HYPRE::HYPRE target
 # also when using HYPRE via add_directory or FetchContent
