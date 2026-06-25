@@ -2937,6 +2937,80 @@ hypreGPUKernel_AMSSetupScaleGGt( hypre_DeviceItem &item,
 }
 #endif
 
+
+
+HYPRE_Int hypre_AMSWriteInfoToFile(void *solver, const char *fname)
+{
+   hypre_AMSData *ams_data = (hypre_AMSData *) solver;
+   HYPRE_Int my_id = 0;
+   FILE *fp;
+
+   hypre_printf("Writing AMS parameters to file %s\n", fname);
+
+   if (ams_data -> A)
+   {
+      hypre_MPI_Comm_rank(hypre_ParCSRMatrixComm(ams_data -> A), &my_id);
+   }
+   if (my_id != 0)   /* only rank 0 writes */
+   {
+      return hypre_error_flag;
+   }
+
+   fp = fopen(fname, "w");           /* "a" to append across solves */
+   if (!fp)
+   {
+      hypre_error_in_arg(2);
+      return hypre_error_flag;
+   }
+
+   hypre_fprintf(fp, "=== AMS parameters ===\n");
+   hypre_fprintf(fp, "dim              = %d\n",      ams_data -> dim);
+   hypre_fprintf(fp, "maxit            = %d\n",      ams_data -> maxit);
+   hypre_fprintf(fp, "tol              = %.16e\n",   ams_data -> tol);
+   hypre_fprintf(fp, "cycle_type       = %d\n",      ams_data -> cycle_type);
+   hypre_fprintf(fp, "A_relax_type     = %d\n",      ams_data -> A_relax_type);
+   hypre_fprintf(fp, "A_relax_times    = %d\n",      ams_data -> A_relax_times);
+   hypre_fprintf(fp, "A_relax_weight   = %.16e\n",   ams_data -> A_relax_weight);
+   hypre_fprintf(fp, "A_omega          = %.16e\n",   ams_data -> A_omega);
+   hypre_fprintf(fp, "A_cheby_order    = %d\n",      ams_data -> A_cheby_order);
+   hypre_fprintf(fp, "A_cheby_fraction = %.16e\n",   ams_data -> A_cheby_fraction);
+   hypre_fprintf(fp, "beta_is_zero     = %d\n",      ams_data -> beta_is_zero);
+   hypre_fprintf(fp, "B_G_coarsen_type = %d\n",      ams_data -> B_G_coarsen_type);
+   hypre_fprintf(fp, "B_G_agg_levels   = %d\n",      ams_data -> B_G_agg_levels);
+   hypre_fprintf(fp, "B_G_relax_type   = %d\n",      ams_data -> B_G_relax_type);
+   hypre_fprintf(fp, "B_G_theta        = %.16e\n",   ams_data -> B_G_theta);
+   hypre_fprintf(fp, "B_G_interp_type  = %d\n",      ams_data -> B_G_interp_type);
+   hypre_fprintf(fp, "B_G_Pmax         = %d\n",      ams_data -> B_G_Pmax);
+   hypre_fprintf(fp, "B_Pi_coarsen_type= %d\n",      ams_data -> B_Pi_coarsen_type);
+   hypre_fprintf(fp, "B_Pi_agg_levels  = %d\n",      ams_data -> B_Pi_agg_levels);
+   hypre_fprintf(fp, "B_Pi_relax_type  = %d\n",      ams_data -> B_Pi_relax_type);
+   hypre_fprintf(fp, "B_Pi_theta       = %.16e\n",   ams_data -> B_Pi_theta);
+   hypre_fprintf(fp, "B_Pi_interp_type = %d\n",      ams_data -> B_Pi_interp_type);
+   hypre_fprintf(fp, "B_Pi_Pmax        = %d\n",      ams_data -> B_Pi_Pmax);
+
+   hypre_fprintf(fp, "\n=== operator Frobenius norms ===\n");
+   if (ams_data -> A)
+      hypre_fprintf(fp, "||A||_F    = %.16e\n", hypre_ParCSRMatrixFnorm(ams_data -> A));
+   if (ams_data -> G)
+      hypre_fprintf(fp, "||G||_F    = %.16e\n", hypre_ParCSRMatrixFnorm(ams_data -> G));
+   if (ams_data -> Pi)
+      hypre_fprintf(fp, "||Pi||_F   = %.16e\n", hypre_ParCSRMatrixFnorm(ams_data -> Pi));
+   if (ams_data -> Pix)
+      hypre_fprintf(fp, "||Pix||_F  = %.16e\n", hypre_ParCSRMatrixFnorm(ams_data -> Pix));
+   if (ams_data -> Piy)
+      hypre_fprintf(fp, "||Piy||_F  = %.16e\n", hypre_ParCSRMatrixFnorm(ams_data -> Piy));
+   if (ams_data -> Piz)
+      hypre_fprintf(fp, "||Piz||_F  = %.16e\n", hypre_ParCSRMatrixFnorm(ams_data -> Piz));
+   if (ams_data -> A_G)
+      hypre_fprintf(fp, "||A_G||_F  = %.16e\n", hypre_ParCSRMatrixFnorm(ams_data -> A_G));
+   if (ams_data -> A_Pi)
+      hypre_fprintf(fp, "||A_Pi||_F = %.16e\n", hypre_ParCSRMatrixFnorm(ams_data -> A_Pi));
+
+   fclose(fp);
+   return hypre_error_flag;
+}
+
+
 HYPRE_Int
 hypre_AMSSetup(void *solver,
                hypre_ParCSRMatrix *A,
@@ -3757,6 +3831,7 @@ hypre_AMSSetup(void *solver,
                            0, 0);
    }
 
+   hypre_AMSWriteInfoToFile(ams_data, "ams_info.txt");
    /* Allocate temporary vectors */
    ams_data -> r0 = hypre_ParVectorInRangeOf(ams_data -> A);
    ams_data -> g0 = hypre_ParVectorInRangeOf(ams_data -> A);
@@ -3854,12 +3929,19 @@ HYPRE_Int hypre_AMSSolve(void *solver,
       hypre_MPI_Comm_rank(hypre_ParCSRMatrixComm(A), &my_id);
    }
 
+   /* If interior nodes are specified then print out solve counter*/
+
+   if (ams_data -> interior_nodes)
+   {
+      hypre_printf("The solve counter is %d\n", ams_data->solve_counter);
+   }
+
    /* Compatible subspace projection for problems with zero-conductivity regions.
       Note that this modifies the input (r.h.s.) vector b! */
    if ( (ams_data -> B_G0) &&
         (++ams_data->solve_counter % ( ams_data -> projection_frequency ) == 0) )
    {
-      /* hypre_printf("Projecting onto the compatible subspace...\n"); */
+      hypre_printf("Projecting onto the compatible subspace...\n");
       hypre_AMSProjectOutGradients(ams_data, b);
    }
 
