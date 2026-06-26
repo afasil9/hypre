@@ -2945,7 +2945,7 @@ HYPRE_Int hypre_AMSWriteInfoToFile(void *solver, const char *fname)
    HYPRE_Int my_id = 0;
    FILE *fp;
 
-   hypre_printf("Writing AMS parameters to file %s\n", fname);
+   // hypre_printf("Writing AMS parameters to file %s\n", fname);
 
    if (ams_data -> A)
    {
@@ -3933,7 +3933,7 @@ HYPRE_Int hypre_AMSSolve(void *solver,
 
    if (ams_data -> interior_nodes)
    {
-      hypre_printf("The solve counter is %d\n", ams_data->solve_counter);
+      // hypre_printf("The solve counter is %d\n", ams_data->solve_counter);
    }
 
    /* Compatible subspace projection for problems with zero-conductivity regions.
@@ -3941,7 +3941,7 @@ HYPRE_Int hypre_AMSSolve(void *solver,
    if ( (ams_data -> B_G0) &&
         (++ams_data->solve_counter % ( ams_data -> projection_frequency ) == 0) )
    {
-      hypre_printf("Projecting onto the compatible subspace...\n");
+      // hypre_printf("Projecting onto the compatible subspace...\n");
       hypre_AMSProjectOutGradients(ams_data, b);
    }
 
