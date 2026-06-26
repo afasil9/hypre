@@ -94,7 +94,7 @@ double alpha(double x, double y, double z)
 
 const int size_beta = 4.0;
 double beta_loc = size_beta / 20.0;
-int freq = 100;
+int freq = 1;
 double eps = 1e-12;
 
 double beta(double x, double y, double z)
@@ -876,14 +876,27 @@ int main (int argc, char *argv[])
                   }
                }
 
-              if (optionBeta == 5){
-                  if (!(fabs(xyzval[0] - 0.5) < beta_loc + eps && // +eps to get a slightly larger box this will include the interface nodes
-                     fabs(xyzval[1] - 0.5) < beta_loc + eps &&
-                     fabs(xyzval[2] - 0.5) < beta_loc + eps))
-                  {
-                     HYPRE_SStructVectorSetValues(interior_nodes, part, index, var, &value);
-                  }
+            //   if (optionBeta == 5){
+            //       if (!(fabs(xyzval[0] - 0.5) < beta_loc + eps && // +eps to get a slightly larger box this will include the interface nodes
+            //          fabs(xyzval[1] - 0.5) < beta_loc + eps &&
+            //          fabs(xyzval[2] - 0.5) < beta_loc + eps))
+            //       {
+            //          HYPRE_SStructVectorSetValues(interior_nodes, part, index, var, &value);
+            //       }
+            //    }
+
+            if (optionBeta == 5){
+               int on_boundary = (xyzval[0] < eps || xyzval[0] > 1.0 - eps ||
+                                 xyzval[1] < eps || xyzval[1] > 1.0 - eps ||
+                                 xyzval[2] < eps || xyzval[2] > 1.0 - eps);
+               if (!on_boundary &&
+                  !(fabs(xyzval[0]-0.5) < beta_loc + eps &&
+                     fabs(xyzval[1]-0.5) < beta_loc + eps &&
+                     fabs(xyzval[2]-0.5) < beta_loc + eps))
+               {
+                  HYPRE_SStructVectorSetValues(interior_nodes, part, index, var, &value);
                }
+            }
 
                HYPRE_SStructVectorSetValues(xcoord, part, index, var, &xyzval[0]);
                HYPRE_SStructVectorSetValues(ycoord, part, index, var, &xyzval[1]);
