@@ -94,7 +94,7 @@ double alpha(double x, double y, double z)
 
 const int size_beta = 4.0;
 double beta_loc = size_beta / 20.0;
-int freq = 100;
+int freq = 1;
 double eps = 1e-12;
 
 double beta(double x, double y, double z)
@@ -876,14 +876,27 @@ int main (int argc, char *argv[])
                   }
                }
 
-              if (optionBeta == 5){
-                  if (!(fabs(xyzval[0] - 0.5) < beta_loc + eps && // +eps to get a slightly larger box this will include the interface nodes
-                     fabs(xyzval[1] - 0.5) < beta_loc + eps &&
-                     fabs(xyzval[2] - 0.5) < beta_loc + eps))
-                  {
-                     HYPRE_SStructVectorSetValues(interior_nodes, part, index, var, &value);
-                  }
+            //   if (optionBeta == 5){
+            //       if (!(fabs(xyzval[0] - 0.5) < beta_loc + eps && // +eps to get a slightly larger box this will include the interface nodes
+            //          fabs(xyzval[1] - 0.5) < beta_loc + eps &&
+            //          fabs(xyzval[2] - 0.5) < beta_loc + eps))
+            //       {
+            //          HYPRE_SStructVectorSetValues(interior_nodes, part, index, var, &value);
+            //       }
+            //    }
+
+            if (optionBeta == 5){
+               int on_boundary = (xyzval[0] < eps || xyzval[0] > 1.0 - eps ||
+                                 xyzval[1] < eps || xyzval[1] > 1.0 - eps ||
+                                 xyzval[2] < eps || xyzval[2] > 1.0 - eps);
+               if (!on_boundary &&
+                  !(fabs(xyzval[0]-0.5) < beta_loc + eps &&
+                     fabs(xyzval[1]-0.5) < beta_loc + eps &&
+                     fabs(xyzval[2]-0.5) < beta_loc + eps))
+               {
+                  HYPRE_SStructVectorSetValues(interior_nodes, part, index, var, &value);
                }
+            }
 
                HYPRE_SStructVectorSetValues(xcoord, part, index, var, &xyzval[0]);
                HYPRE_SStructVectorSetValues(ycoord, part, index, var, &xyzval[1]);
@@ -983,6 +996,49 @@ int main (int argc, char *argv[])
          printf("Problem size: %d\n\n", numrows);
       }
 
+      /* Changing diagonals from 2.0 to 1.0 to match Fenics impelmentation */
+      {
+         hypre_ParCSRMatrix *A_par = (hypre_ParCSRMatrix *) par_A;
+         hypre_CSRMatrix *A_diag = hypre_ParCSRMatrixDiag(A_par);
+         hypre_CSRMatrix *A_offd = hypre_ParCSRMatrixOffd(A_par);
+         HYPRE_Int *A_diag_I = hypre_CSRMatrixI(A_diag);
+         HYPRE_Int *A_diag_J = hypre_CSRMatrixJ(A_diag);
+         double *A_diag_data = hypre_CSRMatrixData(A_diag);
+         HYPRE_Int *A_offd_I = hypre_CSRMatrixI(A_offd);
+         double *A_offd_data = hypre_CSRMatrixData(A_offd);
+         HYPRE_Int num_cols_offd = hypre_CSRMatrixNumCols(A_offd);
+         HYPRE_Int num_rows = hypre_ParCSRMatrixNumRows(A_par);
+         HYPRE_Int i, j;
+
+         for (i = 0; i < num_rows; i++)
+         {
+            double offdiag_l1 = 0.0, diag_val = 0.0;
+            HYPRE_Int diag_idx = -1;
+            for (j = A_diag_I[i]; j < A_diag_I[i + 1]; j++)
+            {
+               if (A_diag_J[j] == i)
+               {
+                  diag_val = A_diag_data[j];
+                  diag_idx = j;
+               }
+               else
+               {
+                  offdiag_l1 += fabs(A_diag_data[j]);
+               }
+            }
+            if (num_cols_offd)
+               for (j = A_offd_I[i]; j < A_offd_I[i + 1]; j++)
+               {
+                  offdiag_l1 += fabs(A_offd_data[j]);
+               }
+
+            if (offdiag_l1 == 0.0 && diag_val != 0.0 && fabs(diag_val - 1.0) > 1e-12)
+            {
+               A_diag_data[diag_idx] = 1.0;
+            }
+         }
+      }
+
       /* Start timing */
       mytime -= MPI_Wtime();
 
@@ -1070,6 +1126,34 @@ int main (int argc, char *argv[])
       /* Get some info */
       HYPRE_PCGGetNumIterations(solver, &its);
       HYPRE_PCGGetFinalRelativeResidualNorm(solver, &final_res_norm);
+
+      {
+         hypre_ParCSRMatrix *A_par = (hypre_ParCSRMatrix *) par_A;
+         hypre_ParVector    *b_par = (hypre_ParVector *) par_b;
+         hypre_ParVector    *x_par = (hypre_ParVector *) par_x;
+         hypre_ParVector    *r_par;
+         double true_res_norm, b_norm;
+
+         r_par = hypre_ParVectorCreate(hypre_ParCSRMatrixComm(A_par),
+                                       hypre_ParCSRMatrixGlobalNumRows(A_par),
+                                       hypre_ParCSRMatrixRowStarts(A_par));
+         hypre_ParVectorInitialize(r_par);
+         hypre_ParVectorCopy(b_par, r_par);
+         hypre_ParCSRMatrixMatvec(-1.0, A_par, x_par, 1.0, r_par);
+
+         true_res_norm = sqrt(hypre_ParVectorInnerProd(r_par, r_par));
+         b_norm        = sqrt(hypre_ParVectorInnerProd(b_par, b_par));
+
+         if (myid == 0)
+         {
+            printf("\nTrue residual ||b-Ax||_2               = %e\n", true_res_norm);
+            printf("True relative residual ||b-Ax||/||b||  = %e\n",
+                   b_norm > 0.0 ? true_res_norm / b_norm : true_res_norm);
+            printf("PCG-reported final relative residual   = %e\n\n", final_res_norm);
+         }
+
+         hypre_ParVectorDestroy(r_par);
+      }
 
       /* Clean up */
       HYPRE_AMSDestroy(precond);
