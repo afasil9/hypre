@@ -3005,6 +3005,11 @@ HYPRE_Int hypre_AMSWriteInfoToFile(void *solver, const char *fname)
       hypre_fprintf(fp, "||A_G||_F  = %.16e\n", hypre_ParCSRMatrixFnorm(ams_data -> A_G));
    if (ams_data -> A_Pi)
       hypre_fprintf(fp, "||A_Pi||_F = %.16e\n", hypre_ParCSRMatrixFnorm(ams_data -> A_Pi));
+   if (ams_data -> interior_nodes)
+      hypre_fprintf(fp, "||interior_nodes||_2 = %.16e\n",
+                    hypre_sqrt(hypre_ParVectorInnerProd(ams_data -> interior_nodes,
+                                                         ams_data -> interior_nodes)));
+
 
    fclose(fp);
    return hypre_error_flag;
