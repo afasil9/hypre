@@ -3035,6 +3035,15 @@ hypre_AMSSetup(void *solver,
 
    ams_data -> A = A;
 
+   /* --- AMS block timers (debug) --- */
+   HYPRE_Int   ams_my_id = 0;
+   hypre_MPI_Comm_rank(hypre_ParCSRMatrixComm(A), &ams_my_id);
+   hypre_double ams_t_total = hypre_MPI_Wtime();
+   hypre_double ams_t0      = ams_t_total;
+   HYPRE_BigInt ams_nnz_orig = hypre_CSRMatrixNumNonzeros(hypre_ParCSRMatrixDiag(A)) +
+                               hypre_CSRMatrixNumNonzeros(hypre_ParCSRMatrixOffd(A));
+   /* -------------------------------- */
+
    /* Modifications for problems with zero-conductivity regions */
    if (ams_data -> interior_nodes)
    {
@@ -3042,6 +3051,8 @@ hypre_AMSSetup(void *solver,
 
       /* Make sure that multiple Setup()+Solve() give identical results */
       ams_data -> solve_counter = 0;
+
+      ams_t0 = hypre_MPI_Wtime();
 
       /* Construct the discrete gradient matrix for the zero-conductivity region
          by eliminating the zero-conductivity nodes from G^t. The range of G0
@@ -3104,6 +3115,12 @@ hypre_AMSSetup(void *solver,
       }
       hypre_ParCSRMatrixFixZeroRows(ams_data -> A_G0);
 
+      if (ams_my_id == 0)
+      {
+         hypre_printf("[ams setup] G0 + A_G0 build:                %g s\n", hypre_MPI_Wtime() - ams_t0);
+      }
+      ams_t0 = hypre_MPI_Wtime();
+
       /* Create AMG solver for A_G0 */
       HYPRE_BoomerAMGCreate(&ams_data -> B_G0);
       HYPRE_BoomerAMGSetCoarsenType(ams_data -> B_G0, ams_data -> B_G_coarsen_type);
@@ -3122,6 +3139,12 @@ hypre_AMSSetup(void *solver,
       HYPRE_BoomerAMGSetup(ams_data -> B_G0,
                            (HYPRE_ParCSRMatrix)ams_data -> A_G0,
                            0, 0);
+
+      if (ams_my_id == 0)
+      {
+         hypre_printf("[ams setup] B_G0 AMG setup:                 %g s\n", hypre_MPI_Wtime() - ams_t0);
+      }
+      ams_t0 = hypre_MPI_Wtime();
 
       /* Construct the preconditioner for ams_data->A = A + G0 G0^T.
          NOTE: this can be optimized significantly by taking into account that
@@ -3287,6 +3310,18 @@ hypre_AMSSetup(void *solver,
       }
 
       hypre_ParCSRMatrixDestroy(G0t);
+
+      if (ams_my_id == 0)
+      {
+         hypre_printf("[ams setup] augmented A (A + G0 G0^T):      %g s\n", hypre_MPI_Wtime() - ams_t0);
+         hypre_printf("[ams setup] nnz: A_orig=%lld  A_aug=%lld  (fill x%.2f)\n",
+                      (long long) ams_nnz_orig,
+                      (long long) (hypre_CSRMatrixNumNonzeros(hypre_ParCSRMatrixDiag(ams_data -> A)) +
+                                   hypre_CSRMatrixNumNonzeros(hypre_ParCSRMatrixOffd(ams_data -> A))),
+                      (double) (hypre_CSRMatrixNumNonzeros(hypre_ParCSRMatrixDiag(ams_data -> A)) +
+                                hypre_CSRMatrixNumNonzeros(hypre_ParCSRMatrixOffd(ams_data -> A))) /
+                      (double) (ams_nnz_orig ? ams_nnz_orig : 1));
+      }
    }
 
    /* Make sure that the first entry in each row is the diagonal one. */
@@ -3394,6 +3429,8 @@ hypre_AMSSetup(void *solver,
       }
    }
 
+   ams_t0 = hypre_MPI_Wtime();
+
    /* Create the AMG solver on the range of G^T */
    if (!ams_data -> beta_is_zero && ams_data -> cycle_type != 20)
    {
@@ -3457,6 +3494,12 @@ hypre_AMSSetup(void *solver,
                            (HYPRE_ParCSRMatrix)ams_data -> A_G,
                            NULL, NULL);
    }
+
+   if (ams_my_id == 0)
+   {
+      hypre_printf("[ams setup] beta/G AMG (A_G + B_G):         %g s\n", hypre_MPI_Wtime() - ams_t0);
+   }
+   ams_t0 = hypre_MPI_Wtime();
 
    if (ams_data -> cycle_type > 10 && ams_data -> cycle_type != 20)
       /* Create the AMG solvers on the range of Pi{x,y,z}^T */
@@ -3836,6 +3879,12 @@ hypre_AMSSetup(void *solver,
                            0, 0);
    }
 
+   if (ams_my_id == 0)
+   {
+      hypre_printf("[ams setup] alpha/Pi AMG (A_Pi + B_Pi):     %g s\n", hypre_MPI_Wtime() - ams_t0);
+      hypre_printf("[ams setup] TOTAL hypre_AMSSetup:           %g s\n", hypre_MPI_Wtime() - ams_t_total);
+   }
+
    hypre_AMSWriteInfoToFile(ams_data, "ams_info.txt");
    /* Allocate temporary vectors */
    ams_data -> r0 = hypre_ParVectorInRangeOf(ams_data -> A);
@@ -4053,6 +4102,11 @@ HYPRE_Int hypre_AMSSolve(void *solver,
       }
    }
 
+   HYPRE_Int    ams_solve_my_id = 0;
+   hypre_MPI_Comm_rank(hypre_ParCSRMatrixComm(ams_data -> A), &ams_solve_my_id);
+   hypre_double ams_solve_t0 = hypre_MPI_Wtime();
+   hypre_double ams_cyc_t;
+
    for (i = 0; i < ams_data -> maxit; i++)
    {
       /* Compute initial residual norms */
@@ -4082,6 +4136,7 @@ HYPRE_Int hypre_AMSSolve(void *solver,
       }
 
       /* Apply the preconditioner */
+      ams_cyc_t = hypre_MPI_Wtime();
       hypre_ParCSRSubspacePrec(ams_data -> A,
                                ams_data -> A_relax_type,
                                ams_data -> A_relax_times,
@@ -4098,6 +4153,10 @@ HYPRE_Int hypre_AMSSolve(void *solver,
                                ams_data -> g0,
                                cycle,
                                z);
+      if (ams_solve_my_id == 0)
+      {
+         hypre_printf("[ams solve] cycle %2d (SubspacePrec):       %g s\n", i + 1, hypre_MPI_Wtime() - ams_cyc_t);
+      }
 
       /* Compute new residual norms */
       if (ams_data -> maxit > 1)
@@ -4124,6 +4183,11 @@ HYPRE_Int hypre_AMSSolve(void *solver,
          i++;
          break;
       }
+   }
+
+   if (ams_solve_my_id == 0)
+   {
+      hypre_printf("[ams solve] TOTAL hypre_AMSSolve:           %g s\n", hypre_MPI_Wtime() - ams_solve_t0);
    }
 
    if (my_id == 0 && ams_data -> print_level > 0 && ams_data -> maxit > 1)
